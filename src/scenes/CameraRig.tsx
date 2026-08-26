@@ -5,19 +5,56 @@ import * as THREE from 'three'
 import { useFrame } from '@react-three/fiber'
 import { useFocusStore } from '../store/focusStore'
 import { useSettingsStore } from '../store/settingsStore'
-import { satIndexOf, satPositions, simClock } from '../store/simStore'
+import { satConfigOf, satData, satIndexOf, simClock } from '../store/simStore'
 import { moonWorldPos } from './Moon'
-import { sunPosition } from '../simulation/orbits'
+import { satPosition, sunDirection, sunPosition } from '../simulation/orbits'
+import { diagEnabled, diagLog } from '../utils/diag'
 import type { FocusTarget, Vec3 } from '../simulation/types'
 
 export const cameraBus: { controls: CameraControlsImpl | null } = { controls: null }
 
-const sunScratch: Vec3 = [0, 0, 0]
+diagLog('camera rig v2 (feed-forward chase) loaded')
 
-function poseFor(focus: FocusTarget): { position: [number, number, number]; target: [number, number, number] } {
+const sunScratch: Vec3 = [0, 0, 0]
+const sunDirScratch: Vec3 = [0, 0, 0]
+const posScratch: Vec3 = [0, 0, 0]
+const vCam = new THREE.Vector3()
+
+/** live position of the focused satellite — falls back to direct orbit math before the first frame */
+function liveSatPos(id: string, out: Vec3): Vec3 {
+  const i = satIndexOf(id) * 3
+  out[0] = satData.positions[i]
+  out[1] = satData.positions[i + 1]
+  out[2] = satData.positions[i + 2]
+  if (Math.hypot(out[0], out[1], out[2]) < 0.5) {
+    sunDirection(simClock.t, sunDirScratch)
+    satPosition(satConfigOf(id), simClock.t, sunDirScratch, out)
+  }
+  return out
+}
+
+/** chase offset for a satellite: sunlit-side vantage scaled to the hardware size */
+function satChasePose(id: string): { position: Vec3; target: Vec3 } {
+  liveSatPos(id, posScratch)
+  const p: Vec3 = [posScratch[0], posScratch[1], posScratch[2]]
+  const len = Math.hypot(...p) || 1
+  const S = useSettingsStore.getState().satScale
+  const dRad = Math.max(0.65 * S * 6, 0.18)
+  const dSun = Math.max(0.6 * S * 6, 0.16)
+  sunPosition(simClock.t, sunScratch)
+  const sd = Math.hypot(...sunScratch) || 1
+  return {
+    position: [
+      p[0] + (p[0] / len) * dRad + (sunScratch[0] / sd) * dSun,
+      p[1] + (p[1] / len) * dRad + (sunScratch[1] / sd) * dSun + dRad * 0.35,
+      p[2] + (p[2] / len) * dRad + (sunScratch[2] / sd) * dSun,
+    ],
+    target: p,
+  }
+}
+
+function staticPoseFor(focus: FocusTarget): { position: [number, number, number]; target: [number, number, number] } {
   switch (focus.kind) {
-    case 'overview':
-      return { position: [9.5, 4.6, 13.5], target: [0, 0, 0] }
     case 'earth':
       return { position: [1.8, 2.2, 7.2], target: [0, 0, 0] }
     case 'sun': {
@@ -29,32 +66,8 @@ function poseFor(focus: FocusTarget): { position: [number, number, number]; targ
         target: [sunScratch[0], sunScratch[1], sunScratch[2]],
       }
     }
-    case 'satellite': {
-      const i = satIndexOf(focus.id) * 3
-      const p: Vec3 = [satPositions[i], satPositions[i + 1], satPositions[i + 2]]
-      const len = Math.hypot(...p) || 1
-      const n = p.map((v) => v / len) as Vec3
-      // approach from the sunlit side so the hardware reads instead of silhouetting
-      sunPosition(simClock.t, sunScratch)
-      const sd = Math.hypot(...sunScratch) || 1
-      return {
-        position: [
-          p[0] + n[0] * 0.65 + (sunScratch[0] / sd) * 0.6,
-          p[1] + n[1] * 0.65 + (sunScratch[1] / sd) * 0.6 + 0.22,
-          p[2] + n[2] * 0.65 + (sunScratch[2] / sd) * 0.6,
-        ],
-        target: [p[0], p[1], p[2]],
-      }
-    }
-    case 'moon': {
-      const m = moonWorldPos
-      const toEarth = m.clone().normalize()
-      const dist = focus.baseId ? 1.9 : 2.8
-      return {
-        position: [m.x - toEarth.x * dist, m.y - toEarth.y * dist + dist * 0.35, m.z - toEarth.z * dist],
-        target: [m.x, m.y, m.z],
-      }
-    }
+    default:
+      return { position: [9.5, 4.6, 13.5], target: [0, 0, 0] }
   }
 }
 
@@ -64,12 +77,17 @@ export function CameraRig() {
   const landing = useFocusStore((s) => s.landing)
   const autoRotate = useSettingsStore((s) => s.autoRotate)
 
+  /** 'approach' = cinematic fly-in toward a moving object; 'chase' = translate with it */
+  const mode = useRef<'idle' | 'approach' | 'chase'>('idle')
+  const prevTarget = useRef(new THREE.Vector3())
+  const diagAccum = useRef(0)
+
   useEffect(() => {
     cameraBus.controls = ref.current
     if (ref.current) {
       ref.current.smoothTime = 0.6
       ref.current.dollySpeed = 0.7
-      ref.current.minDistance = 0.4
+      ref.current.minDistance = 0.05
       ref.current.maxDistance = 160
     }
     return () => {
@@ -77,33 +95,115 @@ export function CameraRig() {
     }
   }, [])
 
-  // fly to the new focus target when it changes
   useEffect(() => {
     const c = ref.current
     if (!c) return
-    const pose = poseFor(focus)
-    c.smoothTime = 0.55
-    void c.setLookAt(...pose.position, ...pose.target, true)
+    if (focus.kind === 'satellite' || focus.kind === 'moon') {
+      mode.current = 'approach'
+      prevTarget.current.set(NaN, NaN, NaN) // (re)baseline on the first frame
+    } else {
+      mode.current = 'idle'
+      const pose = staticPoseFor(focus)
+      c.smoothTime = 0.55
+      void c.setLookAt(...pose.position, ...pose.target, true)
+    }
   }, [focus])
 
-  // follow mode: keep the orbit center glued to the moving object; camera-controls
-  // preserves the user's spherical offset, so free rotation still works while tracking
   useFrame((_, delta) => {
     const c = ref.current
     if (!c) return
     if (landing || autoRotate) c.azimuthAngle += delta * (landing ? 0.045 : 0.1)
+
     const f = useFocusStore.getState().focus
+    if (f.kind !== 'satellite' && f.kind !== 'moon') return
+
+    if (diagEnabled()) {
+      diagAccum.current += delta
+      if (diagAccum.current > 1) {
+        diagAccum.current = 0
+        c.getPosition(vCam)
+        const i = f.kind === 'satellite' ? satIndexOf(f.id) * 3 : -1
+        const d =
+          i >= 0
+            ? Math.hypot(vCam.x - satData.positions[i], vCam.y - satData.positions[i + 1], vCam.z - satData.positions[i + 2])
+            : vCam.distanceTo(moonWorldPos)
+        diagLog(`camera mode=${mode.current} distToTarget=${d.toFixed(3)} pos=${vCam.x.toFixed(2)},${vCam.y.toFixed(2)},${vCam.z.toFixed(2)}`)
+      }
+    }
+
+    // live target
+    let tx: number
+    let ty: number
+    let tz: number
     if (f.kind === 'satellite') {
-      const i = satIndexOf(f.id) * 3
-      void c.setTarget(satPositions[i], satPositions[i + 1], satPositions[i + 2], false)
-    } else if (f.kind === 'moon') {
-      void c.setTarget(moonWorldPos.x, moonWorldPos.y, moonWorldPos.z, false)
+      liveSatPos(f.id, posScratch)
+      tx = posScratch[0]
+      ty = posScratch[1]
+      tz = posScratch[2]
+    } else {
+      tx = moonWorldPos.x
+      ty = moonWorldPos.y
+      tz = moonWorldPos.z
+    }
+
+    if (mode.current === 'approach') {
+      // Feed-forward tracking: glide the OFFSET from the target, never the raw
+      // position — at 30× time scale the target laps Earth in seconds, and a
+      // position-pursuit loop would lag by targetSpeed/k forever.
+      c.smoothTime = 0 // internal damping would re-introduce that lag
+      const desired =
+        f.kind === 'satellite'
+          ? satChasePose(f.id)
+          : (() => {
+              const m = moonWorldPos
+              const n = m.clone().normalize()
+              const dist = f.baseId ? 1.9 : 2.8
+              return {
+                position: [m.x - n.x * dist, m.y - n.y * dist + dist * 0.35, m.z - n.z * dist] as Vec3,
+                target: [m.x, m.y, m.z] as Vec3,
+              }
+            })()
+      const dox = desired.position[0] - desired.target[0]
+      const doy = desired.position[1] - desired.target[1]
+      const doz = desired.position[2] - desired.target[2]
+      c.getPosition(vCam)
+      // measure the offset against the target the camera was PLACED with
+      // (last frame's) — otherwise the target's per-frame displacement leaks
+      // into the offset and the loop equilibrates at speed/k instead of 0
+      if (Number.isNaN(prevTarget.current.x)) prevTarget.current.set(tx, ty, tz)
+      let ox = vCam.x - prevTarget.current.x
+      let oy = vCam.y - prevTarget.current.y
+      let oz = vCam.z - prevTarget.current.z
+      prevTarget.current.set(tx, ty, tz)
+      const k = 1 - Math.exp(-3.2 * delta)
+      ox += (dox - ox) * k
+      oy += (doy - oy) * k
+      oz += (doz - oz) * k
+      void c.setLookAt(tx + ox, ty + oy, tz + oz, tx, ty, tz, false)
+      const offErr = Math.hypot(dox - ox, doy - oy, doz - oz)
+      if (diagEnabled() && diagAccum.current === 0) {
+        diagLog(
+          `  off=${ox.toFixed(2)},${oy.toFixed(2)},${oz.toFixed(2)} desiredOff=${dox.toFixed(2)},${doy.toFixed(2)},${doz.toFixed(2)} offErr=${offErr.toFixed(3)} k=${(1 - Math.exp(-3.2 * delta)).toFixed(4)}`,
+        )
+      }
+      // the desired vantage itself rotates with the orbit, so the loop carries a
+      // small steady lag — accept arrival once we're inside that envelope
+      const arriveEps = f.kind === 'satellite' ? Math.max(useSettingsStore.getState().satScale * 2, 0.2) : 0.3
+      if (offErr < arriveEps) {
+        mode.current = 'chase'
+        prevTarget.current.set(tx, ty, tz)
+      }
+    } else if (mode.current === 'chase') {
+      // translate camera by the target's motion — user keeps full orbit control around it
+      c.smoothTime = 0
+      const dx = tx - prevTarget.current.x
+      const dy = ty - prevTarget.current.y
+      const dz = tz - prevTarget.current.z
+      prevTarget.current.set(tx, ty, tz)
+      c.getPosition(vCam)
+      void c.setLookAt(vCam.x + dx, vCam.y + dy, vCam.z + dz, tx, ty, tz, false)
     }
   }, -1)
 
   return <CameraControls ref={ref} makeDefault />
 }
-
-export { poseFor }
-export type { CameraControlsImpl }
-export const V3 = THREE.Vector3

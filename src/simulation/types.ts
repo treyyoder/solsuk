@@ -5,11 +5,16 @@ export type Vec3 = [number, number, number]
 export interface SatelliteConfig {
   id: SatId
   name: string
-  shell: 0 | 1 | 2
-  /** anomaly offset within the shell plane, radians */
+  /** orbit slot — sun-riding deconflicted constellation (see constants.ts) */
+  radius: number
+  /** tilt of the orbit normal away from the sun line, radians */
+  tilt: number
+  /** azimuth of that tilt around the sun line, radians */
+  azimuth: number
+  /** phase along the orbit, radians */
   phase: number
-  /** RAAN spread within the shell, radians */
-  raanOffset: number
+  /** angular velocity, rad per simTime second */
+  angVel: number
   gpuPods: number
   /** peak compute, exaFLOPS */
   peakExaflops: number

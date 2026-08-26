@@ -15,6 +15,7 @@ import { Earth } from './Earth'
 import { Moon } from './Moon'
 import { SatelliteNet } from './SatelliteNet'
 import { SatelliteDetail } from './SatelliteDetail'
+import { GroundLinks } from './GroundLinks'
 
 /** Advances simTime before anything else reads it (priority -10). */
 function ClockDriver() {
@@ -78,6 +79,7 @@ export function SolsukScene() {
       </Suspense>
       <SatelliteNet />
       <SatelliteDetail />
+      <GroundLinks />
 
       {webglCaps().floatRT && (
         <EffectComposer>

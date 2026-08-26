@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { DEFAULT_SAT_SCALE } from '../simulation/constants'
 
 export type Quality = 'low' | 'medium' | 'high' | 'ultra'
 
@@ -21,6 +22,8 @@ export const QUALITY_PRESETS: Record<Quality, QualityPreset> = {
 
 interface SettingsState {
   quality: Quality
+  /** visual scale of one data center (1.0 = original prototype size) */
+  satScale: number
   orbits: boolean
   constellationLines: boolean
   constellationLabels: boolean
@@ -34,6 +37,7 @@ interface SettingsState {
 
 export const useSettingsStore = create<SettingsState>((set) => ({
   quality: 'high',
+  satScale: DEFAULT_SAT_SCALE,
   orbits: true,
   constellationLines: true,
   constellationLabels: false,

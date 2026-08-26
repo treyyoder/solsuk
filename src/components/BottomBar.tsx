@@ -4,6 +4,7 @@ import { fmtPct } from '../utils/format'
 export function BottomBar() {
   const agg = useSimStore((s) => s.aggregates)
   const moon = useSimStore((s) => s.moon)
+  const satCount = useSimStore((s) => s.satCount)
   return (
     <div className="glass pointer-events-auto flex h-9 items-center justify-center gap-6 rounded-xl px-5">
       <span className="mono text-[11px]">
@@ -17,7 +18,7 @@ export function BottomBar() {
       </span>
       <span className="text-edge">·</span>
       <span className="mono text-[11px]">
-        <span className="text-fg">{agg.inEclipse}/48</span>
+        <span className="text-fg">{agg.inEclipse}/{satCount}</span>
         <span className="text-fg-dim"> in eclipse</span>
       </span>
       <span className="text-edge">·</span>

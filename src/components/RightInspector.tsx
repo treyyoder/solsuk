@@ -1,16 +1,14 @@
-import { FLEET, satIndexOf, useSimStore } from '../store/simStore'
+import { satConfigOf, useSimStore } from '../store/simStore'
 import { useFocusStore } from '../store/focusStore'
 import { MOON_BASES } from '../simulation/moonBases'
 import { GROUND_STATIONS } from '../simulation/groundStations'
-import { SHELLS } from '../simulation/constants'
 import { fmtEF, fmtGbps, fmtMs, fmtMW, fmtPct } from '../utils/format'
 import { Badge, Bar, Section, StatRow } from './ui'
 
 function SatellitePanel({ id }: { id: string }) {
-  const cfg = FLEET[satIndexOf(id)]
+  const cfg = satConfigOf(id)
   const st = useSimStore((s) => s.stats[id])
-  if (!st) return null
-  const shell = SHELLS[cfg.shell]
+  if (!st || !cfg) return null
   const station = GROUND_STATIONS.find((g) => g.id === cfg.groundStationId)!
 
   return (
@@ -20,8 +18,8 @@ function SatellitePanel({ id }: { id: string }) {
         <Badge tone={st.eclipsed ? 'dim' : 'sol'}>{st.eclipsed ? 'ECLIPSE' : 'SUNLIT'}</Badge>
       </div>
       <div className="mb-3 text-[11px] text-fg-dim">
-        “{cfg.name}” · shell {['LEO-A', 'POLAR', 'MEO'][cfg.shell]} · {shell.radius.toFixed(1)}R · inc{' '}
-        {Math.round((shell.inclination * 180) / Math.PI)}°
+        “{cfg.name}” · sun-riding orbit · {cfg.radius.toFixed(2)}R · plane tilt{' '}
+        {Math.round((cfg.tilt * 180) / Math.PI)}° off the sun line
       </div>
 
       <Section title="Compute">
@@ -131,6 +129,7 @@ function SunPanel() {
 
 function OverviewPanel() {
   const agg = useSimStore((s) => s.aggregates)
+  const satCount = useSimStore((s) => s.satCount)
   return (
     <>
       <div className="hud-label mb-2">Net overview</div>
@@ -139,7 +138,7 @@ function OverviewPanel() {
         <div className="hud-label">aggregate effective compute</div>
       </div>
       <StatRow label="Solar harvest" value={`${agg.totalSolarGW.toFixed(2)} GW`} accent="sol" />
-      <StatRow label="Satellites in eclipse" value={`${agg.inEclipse} / 48`} />
+      <StatRow label="Satellites in eclipse" value={`${agg.inEclipse} / ${satCount}`} />
       <StatRow label="Mean utilization" value={fmtPct(agg.meanUtilization * 100, 1)} accent="orbit" />
       <Bar value={agg.meanUtilization} />
       <p className="mt-4 text-[10px] leading-relaxed text-fg-dim">

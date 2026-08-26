@@ -25,21 +25,25 @@ export const CONSTELLATION_RADIUS = 455
 
 export const DEFAULT_TIME_SCALE = 30
 
-export interface OrbitalShell {
-  id: 0 | 1 | 2
-  radius: number
-  inclination: number
-  /** right ascension of ascending node, radians */
-  raan: number
-  /** orbital period in simTime seconds */
-  period: number
-  count: number
-}
+/**
+ * Orbit slots — sun-riding deconflicted constellation.
+ *
+ * Every data center flies an orbit whose plane stays near the terminator plane
+ * (normal within MAX_TILT of the sun line). Because the plane precesses with
+ * the sun, a satellite on it never crosses Earth's umbra: it is ALWAYS sunlit
+ * as long as r·cos(tilt) clears the shadow cylinder. Deconfliction is by
+ * construction — every satellite owns a unique (radius, tilt, plane-azimuth,
+ * phase) slot laid out with golden-angle spacing, so no two ever converge.
+ */
+export const ORBIT_MIN_RADIUS = 4.0
+export const ORBIT_MAX_RADIUS = 6.6
+/** max tilt of an orbit normal away from the sun line, radians. 33° keeps
+ * ORBIT_MIN_RADIUS·cos(tilt)=3.35 > shadow cylinder (3.0)+penumbra (0.18). */
+export const ORBIT_MAX_TILT = (33 * Math.PI) / 180
+/** orbital period at ORBIT_MIN_RADIUS, simTime seconds (Kepler r^1.5 scaling above it) */
+export const ORBIT_BASE_PERIOD = 95
 
-export const SHELLS: OrbitalShell[] = [
-  { id: 0, radius: 4.2, inclination: (53 * Math.PI) / 180, raan: 0.4, period: 90, count: 16 },
-  { id: 1, radius: 4.8, inclination: (97 * Math.PI) / 180, raan: 2.1, period: 110, count: 16 },
-  { id: 2, radius: 5.5, inclination: (30 * Math.PI) / 180, raan: 4.4, period: 135, count: 16 },
-]
-
-export const NUM_SATS = SHELLS.reduce((n, s) => n + s.count, 0)
+export const DEFAULT_SAT_COUNT = 1024
+export const MAX_SAT_COUNT = 4096
+/** visual scale of one data center (1.0 = the original prototype size) */
+export const DEFAULT_SAT_SCALE = 0.1
