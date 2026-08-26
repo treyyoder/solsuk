@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import { Line } from '@react-three/drei'
 import * as THREE from 'three'
-import { satPosition, sunDirection } from '../simulation/orbits'
+import { computeSatBasis, satPositionAndTangent, satPositionAtTheta, sunDirection } from '../simulation/orbits'
 import { getFleet, satData, satIndexOf, simClock, useSimStore } from '../store/simStore'
 import { useFocusStore } from '../store/focusStore'
 import { useSettingsStore } from '../store/settingsStore'
@@ -20,7 +20,7 @@ const WING_GAP = 0.02 // strut length between bus and wing root
 
 // scratch objects — zero per-frame allocation
 const pos: Vec3 = [0, 0, 0]
-const posAhead: Vec3 = [0, 0, 0]
+const tangent: Vec3 = [0, 0, 0]
 const sunScratch: Vec3 = [0, 0, 0]
 const vX = new THREE.Vector3()
 const vY = new THREE.Vector3()
@@ -180,8 +180,10 @@ export function SatelliteNet() {
 
     for (let i = 0; i < fleet.length; i++) {
       const cfg = fleet[i]
-      satPosition(cfg, t, sunScratch, pos)
-      satPosition(cfg, t + 0.25, sunScratch, posAhead)
+      // tangent computed analytically (d/dθ of the orbit formula), not via a
+      // second "moment later" sample — that trick silently degenerates once
+      // simClock.t is large enough to swallow a small time offset entirely
+      satPositionAndTangent(cfg, t, sunScratch, pos, tangent)
       satData.positions[i * 3] = pos[0]
       satData.positions[i * 3 + 1] = pos[1]
       satData.positions[i * 3 + 2] = pos[2]
@@ -189,7 +191,7 @@ export function SatelliteNet() {
       vPos.set(pos[0], pos[1], pos[2])
       // nadir frame: Y radial-out, X along-track (wing axis), Z completes
       vY.copy(vPos).normalize()
-      vX.set(posAhead[0] - pos[0], posAhead[1] - pos[1], posAhead[2] - pos[2]).normalize()
+      vX.set(tangent[0], tangent[1], tangent[2])
       vZ.crossVectors(vX, vY).normalize()
       vX.crossVectors(vY, vZ).normalize()
       mBasis.makeBasis(vX, vY, vZ).setPosition(vPos)
@@ -258,13 +260,14 @@ export function SatelliteNet() {
     if (!cfg) return null
     const sd: Vec3 = [0, 0, 0]
     sunDirection(simClock.t, sd)
+    computeSatBasis(cfg, sd)
     const pts: [number, number, number][] = []
-    const probe = { ...cfg }
     for (let k = 0; k <= 128; k++) {
-      // sweep the full anomaly at the current instant
-      probe.phase = cfg.phase + (k / 128) * Math.PI * 2 - simClock.t * cfg.angVel
+      // sweep the ring shape directly by angle — no time-based phase math,
+      // so there's nothing here for a huge simClock.t to corrupt
+      const theta = cfg.phase + (k / 128) * Math.PI * 2
       const p: Vec3 = [0, 0, 0]
-      satPosition(probe, simClock.t, sd, p)
+      satPositionAtTheta(cfg, theta, p)
       pts.push([p[0], p[1], p[2]])
     }
     return pts

@@ -6,7 +6,8 @@ import { useFocusStore } from '../store/focusStore'
 import { QUALITY_PRESETS, useSettingsStore } from '../store/settingsStore'
 import { usePerfStore } from '../store/perfStore'
 import { clampDprToTextureLimit, webglCaps } from '../utils/webgl'
-import { diagLog } from '../utils/diag'
+import { diagEnabled, diagLog } from '../utils/diag'
+import { earthRotation } from '../simulation/orbits'
 import { CameraRig } from './CameraRig'
 import { Starfield } from './Starfield'
 import { Constellations } from './Constellations'
@@ -19,9 +20,17 @@ import { GroundLinks } from './GroundLinks'
 
 /** Advances simTime before anything else reads it (priority -10). */
 function ClockDriver() {
+  const acc = useRef(0)
   useFrame((_, delta) => {
     const { paused, timeScale } = useSimStore.getState()
     if (!paused) simClock.t += Math.min(delta, 0.1) * timeScale
+    if (diagEnabled()) {
+      acc.current += delta
+      if (acc.current > 0.5) {
+        acc.current = 0
+        diagLog(`t=${simClock.t.toExponential(6)} timeScale=${timeScale.toExponential(3)} earthRot=${earthRotation(simClock.t).toFixed(4)}`)
+      }
+    }
   }, -10)
   return null
 }

@@ -12,7 +12,23 @@ import type { SatelliteConfig, Vec3 } from './types'
 /**
  * Pure circular-orbit math. World frame: y-up; the ecliptic is the x-z plane.
  * All functions are allocation-light and safe to call per-frame.
+ *
+ * simClock.t only ever grows (it's a running real-time clock, and at high
+ * speed levels it grows FAST — see utils/time.ts). Every periodic quantity
+ * here reduces t modulo its own period BEFORE any multiply/divide that would
+ * otherwise build a huge intermediate value: once an angle's raw magnitude
+ * exceeds roughly 2^52, a double can no longer represent it to sub-2π
+ * precision, so per-frame changes stop tracing a smooth orbit and start
+ * sampling the periodic function at effectively uncorrelated points — and
+ * small fixed offsets (like the tangent-direction trick a naive
+ * "position a moment later" sample relies on) get silently swallowed
+ * entirely (t + 0.25 === t once t is large enough). Wrapping first keeps
+ * every trig argument bounded to one period, however large t itself grows.
  */
+function wrapTime(t: number, period: number): number {
+  const r = t % period
+  return r < 0 ? r + period : r
+}
 
 /** Position on an inclined circular orbit: anomaly ν in the orbital plane, plane defined by inclination + RAAN. */
 export function orbitPosition(radius: number, inclination: number, raan: number, anomaly: number, out: Vec3): Vec3 {
@@ -42,7 +58,8 @@ const bScratch: Vec3 = [0, 0, 0]
  * this is the "always in sunlight" guarantee. Unique (radius, tilt, azimuth,
  * phase) slots per satellite keep the constellation deconflicted.
  */
-export function satPosition(sat: SatelliteConfig, t: number, sunDir: Vec3, out: Vec3): Vec3 {
+/** Builds the sun-riding orbit's in-plane basis (a, b) into aScratch/bScratch — shared by position and tangent. */
+function satBasis(sat: SatelliteConfig, sunDir: Vec3): void {
   // u,v ⊥ sunDir (sunDir lives in the ecliptic plane, so worldY is safe)
   // u = sunDir × Y, v = sunDir × u
   const ux = -sunDir[2]
@@ -79,23 +96,70 @@ export function satPosition(sat: SatelliteConfig, t: number, sunDir: Vec3, out: 
   bScratch[0] = nScratch[1] * az - nScratch[2] * ay
   bScratch[1] = nScratch[2] * ax - nScratch[0] * az
   bScratch[2] = nScratch[0] * ay - nScratch[1] * ax
-  const theta = sat.phase + t * sat.angVel
+}
+
+function satTheta(sat: SatelliteConfig, t: number): number {
+  const period = (2 * Math.PI) / sat.angVel
+  return sat.phase + wrapTime(t, period) * sat.angVel
+}
+
+export function satPosition(sat: SatelliteConfig, t: number, sunDir: Vec3, out: Vec3): Vec3 {
+  satBasis(sat, sunDir)
+  return satPositionAtTheta(sat, satTheta(sat, t), out)
+}
+
+/** Position at an explicit orbital angle — for sweeping a full ring (e.g. an
+ * orbit-preview line) without going through time-based phase arithmetic,
+ * which would otherwise mix a huge t-derived term back in. Call satBasis
+ * first (satPosition does this for you; direct callers must do it themselves). */
+export function satPositionAtTheta(sat: SatelliteConfig, theta: number, out: Vec3): Vec3 {
   const cth = Math.cos(theta) * sat.radius
   const sth = Math.sin(theta) * sat.radius
-  out[0] = ax * cth + bScratch[0] * sth
-  out[1] = ay * cth + bScratch[1] * sth
-  out[2] = az * cth + bScratch[2] * sth
+  out[0] = aScratch[0] * cth + bScratch[0] * sth
+  out[1] = aScratch[1] * cth + bScratch[1] * sth
+  out[2] = aScratch[2] * cth + bScratch[2] * sth
   return out
 }
 
+/** Basis-build entry point for callers that need satPositionAtTheta directly (e.g. sweeping a ring). */
+export function computeSatBasis(sat: SatelliteConfig, sunDir: Vec3): void {
+  satBasis(sat, sunDir)
+}
+
+/**
+ * Position AND unit along-track tangent in one basis pass — the tangent is
+ * the analytic derivative d/dθ of the position formula, not a second sample
+ * at "t plus a moment," which silently degenerates to zero once t's
+ * magnitude swallows that small offset (see the module comment above).
+ */
+export function satPositionAndTangent(sat: SatelliteConfig, t: number, sunDir: Vec3, outPos: Vec3, outTangent: Vec3): void {
+  satBasis(sat, sunDir)
+  const theta = satTheta(sat, t)
+  const cth = Math.cos(theta)
+  const sth = Math.sin(theta)
+  const ax = aScratch[0]
+  const ay = aScratch[1]
+  const az = aScratch[2]
+  const bx = bScratch[0]
+  const by = bScratch[1]
+  const bz = bScratch[2]
+  outPos[0] = ax * cth * sat.radius + bx * sth * sat.radius
+  outPos[1] = ay * cth * sat.radius + by * sth * sat.radius
+  outPos[2] = az * cth * sat.radius + bz * sth * sat.radius
+  // d/dθ (cosθ·a + sinθ·b) = -sinθ·a + cosθ·b — already unit length (a,b orthonormal)
+  outTangent[0] = -sth * ax + cth * bx
+  outTangent[1] = -sth * ay + cth * by
+  outTangent[2] = -sth * az + cth * bz
+}
+
 export function moonPosition(t: number, out: Vec3): Vec3 {
-  const anomaly = (t / MOON_PERIOD) * Math.PI * 2 + 0.8
+  const anomaly = (wrapTime(t, MOON_PERIOD) / MOON_PERIOD) * Math.PI * 2 + 0.8
   return orbitPosition(MOON_ORBIT_RADIUS, MOON_INCLINATION, 1.2, anomaly, out)
 }
 
 /** Unit vector from origin toward the sun; precesses slowly around the ecliptic. */
 export function sunDirection(t: number, out: Vec3): Vec3 {
-  const a = (t / SUN_PERIOD) * Math.PI * 2 + 0.6
+  const a = (wrapTime(t, SUN_PERIOD) / SUN_PERIOD) * Math.PI * 2 + 0.6
   out[0] = Math.cos(a)
   out[1] = 0
   out[2] = Math.sin(a)
@@ -112,7 +176,7 @@ export function sunPosition(t: number, out: Vec3): Vec3 {
 
 /** Earth rotation angle about its (tilted) axis. */
 export function earthRotation(t: number): number {
-  return (t / EARTH_DAY) * Math.PI * 2
+  return (wrapTime(t, EARTH_DAY) / EARTH_DAY) * Math.PI * 2
 }
 
 export { EARTH_TILT }
