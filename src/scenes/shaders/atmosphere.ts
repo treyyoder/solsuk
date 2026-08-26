@@ -40,15 +40,17 @@ export const ATMO_FRAG = /* glsl */ `
     vec3 nMin = normalize(pMin);
     float lit = clamp(dot(nMin, uSunDir) * 0.7 + 0.42, 0.05, 1.0);
 
-    // blue gradient with altitude: a THIN white-hot line right at the horizon,
-    // vivid blue carrying the body of the glow, thinning into deep indigo —
-    // the transitions sit where the density is still bright enough to show them
-    vec3 cHorizon = vec3(0.92, 0.97, 1.0);
+    // blue gradient with altitude: translucent earth-blue at the horizon —
+    // no white-hot core — deepening into indigo as the air thins into space;
+    // transitions sit where the density is still bright enough to show them
+    vec3 cHorizon = vec3(0.42, 0.68, 1.0);
     vec3 cDeep = vec3(0.05, 0.13, 0.45);
     vec3 col = mix(cHorizon, uColor, smoothstep(0.008, 0.055, h));
     col = mix(col, cDeep, smoothstep(0.12, 0.34, h));
 
+    // kept below the bloom threshold so the horizon stays a transparent blue
+    // instead of blowing out to white
     float a = density * limb * lit;
-    gl_FragColor = vec4(col * a * 1.55, a);
+    gl_FragColor = vec4(col * a * 1.05, a * 0.85);
   }
 `
