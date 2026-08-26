@@ -50,7 +50,7 @@ export function Earth() {
         fragmentShader: ATMO_FRAG,
         uniforms: {
           uSunDir: { value: new THREE.Vector3(1, 0, 0) },
-          uColor: { value: new THREE.Color('#4f9dfa') },
+          uColor: { value: new THREE.Color('#3b8dff') },
           uSurfaceR: { value: EARTH_RADIUS },
         },
         side: THREE.BackSide,

@@ -28,8 +28,8 @@ export const ATMO_FRAG = /* glsl */ `
     float b = length(pMin);
     float h = max(b - uSurfaceR, 0.0);
 
-    // two-scale exponential falloff: dense band + thin outer haze
-    float density = exp(-h / 0.055) + 0.32 * exp(-h / 0.22);
+    // two-scale exponential falloff: dense band + a stronger blue outer haze
+    float density = exp(-h / 0.05) + 0.5 * exp(-h / 0.24);
     density = min(density, 1.3);
 
     // over the planet's disc the surface shader carries the rim — keep only a
@@ -40,8 +40,13 @@ export const ATMO_FRAG = /* glsl */ `
     vec3 nMin = normalize(pMin);
     float lit = clamp(dot(nMin, uSunDir) * 0.7 + 0.42, 0.05, 1.0);
 
-    // whiter right at the horizon, deeper blue as it thins out
-    vec3 col = mix(uColor, vec3(0.85, 0.93, 1.0), clamp(density * 0.55, 0.0, 0.75));
+    // blue gradient with altitude: a THIN white-hot line right at the horizon,
+    // vivid blue carrying the body of the glow, thinning into deep indigo —
+    // the transitions sit where the density is still bright enough to show them
+    vec3 cHorizon = vec3(0.92, 0.97, 1.0);
+    vec3 cDeep = vec3(0.05, 0.13, 0.45);
+    vec3 col = mix(cHorizon, uColor, smoothstep(0.008, 0.055, h));
+    col = mix(col, cDeep, smoothstep(0.12, 0.34, h));
 
     float a = density * limb * lit;
     gl_FragColor = vec4(col * a * 1.55, a);
