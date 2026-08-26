@@ -2,9 +2,19 @@ export type SatId = string // 'SAT-01' … 'SAT-48'
 
 export type Vec3 = [number, number, number]
 
+import type { FacilityClass } from './epochModel'
+
 export interface SatelliteConfig {
   id: SatId
   name: string
+  /** facility class (generation) — drives visuals, power, and stats */
+  cls: FacilityClass
+  /** index within its class (facility identity is (cls, k)) */
+  k: number
+  /** year this facility was commissioned (from the growth model) */
+  commissionYear: number
+  /** electrical power draw, MW */
+  powerMW: number
   /** orbit slot — sun-riding deconflicted constellation (see constants.ts) */
   radius: number
   /** tilt of the orbit normal away from the sun line, radians */
@@ -15,11 +25,6 @@ export interface SatelliteConfig {
   phase: number
   /** angular velocity, rad per simTime second */
   angVel: number
-  gpuPods: number
-  /** peak compute, exaFLOPS */
-  peakExaflops: number
-  panelAreaM2: number
-  batteryMWh: number
   groundStationId: string
 }
 

@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react'
 import { breadcrumb, useFocusStore } from '../store/focusStore'
-import { simClock, useSimStore } from '../store/simStore'
+import { simClock, useSimStore, yearFromT } from '../store/simStore'
 import { usePerfStore } from '../store/perfStore'
 import { useSettingsStore, type Quality } from '../store/settingsStore'
-import { fmtSimClock } from '../utils/format'
 import { fmtSimRate } from '../utils/time'
 import { MAX_SPEED_LEVEL } from '../simulation/constants'
 import { SolsukLogo } from './SolsukLogo'
@@ -14,7 +13,16 @@ function SimClockReadout() {
     const id = window.setInterval(() => force((n) => n + 1), 500)
     return () => window.clearInterval(id)
   }, [])
-  return <span className="mono text-[11px] text-fg-dim">{fmtSimClock(simClock.t)}</span>
+  const year = yearFromT(simClock.t)
+  const dayOfYear = Math.floor((year % 1) * 365.25)
+  const hh = Math.floor((simClock.t % 86400) / 3600)
+  const mm = Math.floor((simClock.t % 3600) / 60)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return (
+    <span className="mono text-[11px] text-fg-dim">
+      <span className="text-orbit">{Math.floor(year)}</span> · day {dayOfYear} · {pad(hh)}:{pad(mm)}
+    </span>
+  )
 }
 
 export function TopBar() {

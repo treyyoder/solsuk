@@ -6,6 +6,7 @@ import { useFrame } from '@react-three/fiber'
 import { useFocusStore } from '../store/focusStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { satConfigOf, satData, satIndexOf, simClock } from '../store/simStore'
+import { CLASS_SPAN } from './SatelliteNet'
 import { moonWorldPos } from './Moon'
 import { satPosition, sunDirection, sunPosition } from '../simulation/orbits'
 import { diagEnabled, diagLog } from '../utils/diag'
@@ -71,20 +72,25 @@ function liveSatPos(id: string, out: Vec3): Vec3 {
   out[1] = satData.positions[i + 1]
   out[2] = satData.positions[i + 2]
   if (Math.hypot(out[0], out[1], out[2]) < 0.5) {
-    sunDirection(simClock.t, sunDirScratch)
-    satPosition(satConfigOf(id), simClock.t, sunDirScratch, out)
+    const cfg = satConfigOf(id)
+    if (cfg) {
+      sunDirection(simClock.t, sunDirScratch)
+      satPosition(cfg, simClock.t, sunDirScratch, out)
+    }
   }
   return out
 }
 
-/** chase offset for a satellite: sunlit-side vantage scaled to the hardware size */
+/** chase offset for a satellite: sunlit-side vantage scaled to the facility's class span */
 function satChasePose(id: string): { position: Vec3; target: Vec3 } {
   liveSatPos(id, posScratch)
   const p: Vec3 = [posScratch[0], posScratch[1], posScratch[2]]
   const len = Math.hypot(...p) || 1
   const S = useSettingsStore.getState().satScale
-  const dRad = Math.max(0.65 * S * 6, 0.18)
-  const dSun = Math.max(0.6 * S * 6, 0.16)
+  const span = CLASS_SPAN[satConfigOf(id)?.cls ?? 'pioneer']
+  // 2.6× half-span keeps the camera outside even the widest wing sweep
+  const dRad = Math.max(S * span * 2.6, 0.18)
+  const dSun = Math.max(S * span * 2.2, 0.16)
   sunPosition(simClock.t, sunScratch)
   const sd = Math.hypot(...sunScratch) || 1
   return {

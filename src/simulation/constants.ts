@@ -50,7 +50,5 @@ export const ORBIT_MAX_TILT = (33 * Math.PI) / 180
  * period (Kepler r^1.5 scaling above it for the outer shells) */
 export const ORBIT_BASE_PERIOD = 5400
 
-export const DEFAULT_SAT_COUNT = 1024
-export const MAX_SAT_COUNT = 4096
-/** visual scale of one data center (1.0 = the original prototype size) */
+/** visual scale multiplier applied to every facility's per-class dimensions */
 export const DEFAULT_SAT_SCALE = 0.1

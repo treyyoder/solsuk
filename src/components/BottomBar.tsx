@@ -1,30 +1,29 @@
 import { useSimStore } from '../store/simStore'
-import { fmtPct } from '../utils/format'
+import { fmtCount, fmtFlopsEF, fmtPowerMW } from '../simulation/epochModel'
 
 export function BottomBar() {
-  const agg = useSimStore((s) => s.aggregates)
+  const epoch = useSimStore((s) => s.epoch)
   const moon = useSimStore((s) => s.moon)
-  const satCount = useSimStore((s) => s.satCount)
   return (
     <div className="glass pointer-events-auto flex h-9 items-center justify-center gap-6 rounded-xl px-5">
       <span className="mono text-[11px]">
-        <span className="text-orbit">{agg.totalEffectiveEF.toFixed(1)} EF</span>
+        <span className="text-orbit">{fmtCount(epoch.totalCount)}</span>
+        <span className="text-fg-dim"> data centers</span>
+      </span>
+      <span className="text-edge">·</span>
+      <span className="mono text-[11px]">
+        <span className="text-orbit">{fmtFlopsEF(epoch.totalComputeEF)}</span>
         <span className="text-fg-dim"> net compute</span>
       </span>
       <span className="text-edge">·</span>
       <span className="mono text-[11px]">
-        <span className="text-sol">{agg.totalSolarGW.toFixed(2)} GW</span>
+        <span className="text-sol">{fmtPowerMW(epoch.totalPowerMW)}</span>
         <span className="text-fg-dim"> solar</span>
       </span>
       <span className="text-edge">·</span>
       <span className="mono text-[11px]">
-        <span className="text-fg">{agg.inEclipse}/{satCount}</span>
-        <span className="text-fg-dim"> in eclipse</span>
-      </span>
-      <span className="text-edge">·</span>
-      <span className="mono text-[11px]">
-        <span className="text-orbit">{fmtPct(agg.meanUtilization * 100)}</span>
-        <span className="text-fg-dim"> util</span>
+        <span className="text-sol">{fmtPowerMW(epoch.largestPowerMW)}</span>
+        <span className="text-fg-dim"> largest DC</span>
       </span>
       <span className="text-edge">·</span>
       <span className="mono text-[11px]">

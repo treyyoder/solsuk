@@ -2,7 +2,7 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { CITIES, stationWorldPos } from '../simulation/groundStations'
-import { satData, simClock } from '../store/simStore'
+import { getFleet, satData, simClock } from '../store/simStore'
 import { useSettingsStore } from '../store/settingsStore'
 import type { Vec3 } from '../simulation/types'
 
@@ -31,7 +31,8 @@ export function GroundLinks() {
   useFrame(({ clock }) => {
     const t = simClock.t
     const posArr = satData.positions
-    const n = posArr.length / 3
+    // the positions buffer is over-allocated for growth — only scan live facilities
+    const n = getFleet().length
     const linePos = lineGeo.attributes.position.array as Float32Array
     const markerMesh = markers.current
     const packetMesh = packets.current

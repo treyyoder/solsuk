@@ -4,6 +4,8 @@ import { TopBar } from './components/TopBar'
 import { FleetList } from './components/FleetList'
 import { RightInspector } from './components/RightInspector'
 import { BottomBar } from './components/BottomBar'
+import { TimelineBar } from './components/TimelineBar'
+import { MilestoneToast } from './components/MilestoneToast'
 import { LandingOverlay } from './components/LandingOverlay'
 import { WebGL2Banner } from './components/WebGL2Banner'
 import { SceneErrorBoundary } from './components/SceneErrorBoundary'
@@ -91,9 +93,12 @@ export default function App() {
             <PanelToggle side="right" open={rightOpen} onClick={() => toggle('rightOpen')} />
             {rightOpen && <RightInspector />}
           </div>
+          <TimelineBar />
           <BottomBar />
         </div>
       )}
+
+      {!landing && <MilestoneToast />}
 
       <DiagOverlay />
     </div>

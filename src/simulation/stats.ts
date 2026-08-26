@@ -2,12 +2,11 @@ import type { Crosslink, MoonBaseStats, SatelliteConfig, SatelliteStats, Vec3 } 
 import { GROUND_STATIONS, slantRange, stationVisible } from './groundStations'
 
 /**
- * Stat evolution, ticked at ~10 Hz by the sim loop. Pure: (prev, env, dt) → next.
- * Numbers are fictional but internally consistent.
+ * Live per-facility flavor, ticked at ~10 Hz for the FOCUSED facility only
+ * (fleet-wide aggregates come from the epoch model, not per-facility sums).
+ * Pure: (prev, env, dt) → next. Numbers are fictional but sized from the
+ * facility's actual modeled power draw.
  */
-
-const SOLAR_KW_PER_M2 = 0.29 // panel output at 1 AU with cell efficiency folded in
-const TRACKING_COS = 0.93 // single-axis sun tracking keeps incidence near-optimal
 
 export function initialStats(_cfg: SatelliteConfig, rng: () => number): SatelliteStats {
   return {
@@ -36,28 +35,33 @@ export function tickSatellite(
   t: number,
   dt: number,
   rng: () => number,
+  /** current FP16 compute efficiency, TFLOPS per kW (from the epoch model) */
+  effTFperKW: number,
 ): SatelliteStats {
   // --- compute: mean-reverting utilization random walk ---
   const lowBattery = prev.batteryPct < 20
   const target = lowBattery ? 0.25 : 0.72
   let utilization = prev.utilization + (target - prev.utilization) * 0.02 * dt + (rng() - 0.5) * 0.045 * Math.sqrt(dt)
   utilization = Math.max(0.05, Math.min(0.99, utilization))
-  const effectiveExaflops = cfg.peakExaflops * utilization
+  const effectiveExaflops = (cfg.powerMW * 1000 * effTFperKW * utilization) / 1e6
   const activeJobs = Math.max(4, Math.round(prev.activeJobs + (rng() - 0.5 + (utilization - 0.7) * 0.4) * 24 * dt))
   // clamped: at high time-warp levels dt can be huge, and this term is otherwise unbounded
   const tempC = Math.max(-40, Math.min(140, prev.tempC + ((14 + utilization * 42 - prev.tempC) * 0.05 + (rng() - 0.5) * 0.3) * dt))
 
-  // --- solar / battery ---
-  const solarMW = (cfg.panelAreaM2 * SOLAR_KW_PER_M2 * illum * TRACKING_COS) / 1000
-  const loadMW = 0.25 + utilization * (cfg.gpuPods * 0.028)
+  // --- solar / battery: array sized ~8% above the facility's electrical draw ---
+  const solarMW = cfg.powerMW * 1.08 * illum
+  const loadMW = cfg.powerMW * (0.25 + utilization * 0.75)
   const netMW = solarMW - loadMW
-  const batteryPct = Math.max(0, Math.min(100, prev.batteryPct + ((netMW * dt) / 3600 / cfg.batteryMWh) * 100 * 60))
+  const batteryMWh = cfg.powerMW * 2 // ~2 hours of storage
+  const batteryPct = Math.max(0, Math.min(100, prev.batteryPct + ((netMW * dt) / 3600 / batteryMWh) * 100 * 60))
 
   // --- transmission ---
   const station = GROUND_STATIONS.find((g) => g.id === cfg.groundStationId)!
   const groundVisible = stationVisible(station, pos, t)
   const range = slantRange(station, pos, t)
-  const downlinkGbps = groundVisible ? +(240 / (1 + range * 0.4) + rng() * 8).toFixed(1) : 0
+  // downlink scales with the era's optics — approximated from facility size
+  const eraGbps = 40 + cfg.powerMW * 25
+  const downlinkGbps = groundVisible ? +((eraGbps / (1 + range * 0.4)) * (0.9 + rng() * 0.2)).toFixed(1) : 0
   const latencyMs = groundVisible ? +(range * 2.2 + 4 + rng() * 1.5).toFixed(1) : 0
 
   return {

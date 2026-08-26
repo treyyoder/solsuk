@@ -1,22 +1,20 @@
 import { useFocusStore } from '../store/focusStore'
-import { useSimStore } from '../store/simStore'
 import { SolsukLogo } from './SolsukLogo'
 
 export function LandingOverlay() {
   const dismissLanding = useFocusStore((s) => s.dismissLanding)
   const setFocus = useFocusStore((s) => s.setFocus)
-  const satCount = useSimStore((s) => s.satCount)
-
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center bg-gradient-to-b from-void/55 via-transparent to-void/80">
       <div className="fade-up flex flex-col items-center px-6 text-center" style={{ animationDelay: '200ms' }}>
-        <div className="hud-label mb-4 tracking-[0.5em] text-ion">ORBITAL COMPUTE ERA · 2061</div>
+        <div className="hud-label mb-4 tracking-[0.5em] text-ion">THE ORBITAL COMPUTE ERA · 2026 → 2084</div>
         <h1 className="font-display text-6xl font-bold tracking-[0.16em] md:text-7xl">
           <SolsukLogo />
         </h1>
         <p className="neon-text mt-4 max-w-md text-sm leading-relaxed">
-          The heavy thinking moved off-world. {satCount.toLocaleString()} solar data centers ride the net above
-          Earth, the Moon keeps its own counsel, and the Sun pays for all of it.
+          The heavy thinking moves off-world. Watch a handful of 150-kilowatt experiments grow into gigawatt compute
+          complexes and a planetary-scale orbital cloud — while the Moon keeps its own counsel and the Sun pays for all
+          of it.
         </p>
         <button
           onClick={() => {

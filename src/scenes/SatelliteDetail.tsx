@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { satConfigOf, satData, satIndexOf, setStatsFocus, simClock, useSimStore } from '../store/simStore'
+import { CLASS_SPAN } from './SatelliteNet'
 import { useFocusStore } from '../store/focusStore'
 import { GROUND_STATIONS, stationWorldPos } from '../simulation/groundStations'
 import { useSettingsStore } from '../store/settingsStore'
@@ -17,7 +18,7 @@ const gsScratch: Vec3 = [0, 0, 0]
 export function SatelliteDetail() {
   const focus = useFocusStore((s) => s.focus)
   const satId = focus.kind === 'satellite' ? focus.id : null
-  const stats = useSimStore((s) => (satId ? s.stats[satId] : null))
+  const stats = useSimStore((s) => (satId ? s.focusedStats : null))
 
   // tell the sim loop which satellite needs live crosslink derivation
   useEffect(() => {
@@ -41,14 +42,16 @@ export function SatelliteDetail() {
     const sz = posArr[i + 2]
     const S = useSettingsStore.getState().satScale
 
+    const cfgForScale = satConfigOf(satId)
+    const span = cfgForScale ? CLASS_SPAN[cfgForScale.cls] : 1
     if (navLight.current) {
-      navLight.current.position.set(sx, sy + 0.075 * S, sz)
-      navLight.current.scale.setScalar(Math.max(S * 0.3, 0.012))
+      navLight.current.position.set(sx, sy + 0.14 * S * span, sz)
+      navLight.current.scale.setScalar(Math.min(Math.max(S * span * 0.08, 0.012), 0.06))
       const on = Math.sin(clock.elapsedTime * 6) > 0.4
       ;(navLight.current.material as THREE.MeshBasicMaterial).opacity = on ? 1 : 0.08
     }
 
-    const st = useSimStore.getState().stats[satId]
+    const st = useSimStore.getState().focusedStats
     for (let k = 0; k < 2; k++) {
       const link = st?.crosslinks[k]
       const arr = linkPos[k]
@@ -67,9 +70,9 @@ export function SatelliteDetail() {
       linkGeos[k].attributes.position.needsUpdate = true
     }
     const cfg = satConfigOf(satId)
-    const station = GROUND_STATIONS.find((g) => g.id === cfg.groundStationId)!
+    const station = cfg ? GROUND_STATIONS.find((g) => g.id === cfg.groundStationId) : undefined
     const arr = linkPos[2]
-    if (st?.groundVisible) {
+    if (st?.groundVisible && station) {
       stationWorldPos(station, simClock.t, gsScratch)
       arr[0] = sx
       arr[1] = sy

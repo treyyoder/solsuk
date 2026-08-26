@@ -2,56 +2,85 @@ import { satConfigOf, useSimStore } from '../store/simStore'
 import { useFocusStore } from '../store/focusStore'
 import { MOON_BASES } from '../simulation/moonBases'
 import { GROUND_STATIONS } from '../simulation/groundStations'
-import { fmtEF, fmtGbps, fmtMs, fmtMW, fmtPct } from '../utils/format'
+import {
+  CLASS_META,
+  fabricTbpsForPower,
+  fmtAreaM2,
+  fmtBandwidthGbps,
+  fmtCount,
+  fmtFlopsEF,
+  fmtMassTons,
+  fmtPowerMW,
+  radiatorAreaM2,
+  solarAreaM2,
+} from '../simulation/epochModel'
+import { fmtGbps, fmtMs, fmtMW, fmtPct } from '../utils/format'
 import { Badge, Bar, Section, StatRow } from './ui'
 
 function SatellitePanel({ id }: { id: string }) {
   const cfg = satConfigOf(id)
-  const st = useSimStore((s) => s.stats[id])
-  if (!st || !cfg) return null
+  const st = useSimStore((s) => s.focusedStats)
+  const epoch = useSimStore((s) => s.epoch)
+  const config = useSimStore((s) => s.config)
+  if (!cfg) return <div className="text-[11px] text-fg-dim">Facility decommissioned at this point in the timeline.</div>
+  const meta = CLASS_META[cfg.cls]
   const station = GROUND_STATIONS.find((g) => g.id === cfg.groundStationId)!
+  const computeEF = (cfg.powerMW * 1000 * epoch.computeEffTFperKW) / 1e6
 
   return (
     <>
       <div className="mb-1 flex items-baseline justify-between">
         <span className="orbit-text text-sm font-semibold">{cfg.id}</span>
-        <Badge tone={st.eclipsed ? 'dim' : 'sol'}>{st.eclipsed ? 'ECLIPSE' : 'SUNLIT'}</Badge>
+        <Badge tone={cfg.cls === 'giga' ? 'sol' : cfg.cls === 'hyper' ? 'orbit' : 'ion'}>{meta.short}</Badge>
       </div>
-      <div className="mb-3 text-[11px] text-fg-dim">
-        “{cfg.name}” · sun-riding orbit · {cfg.radius.toFixed(2)}R · plane tilt{' '}
-        {Math.round((cfg.tilt * 180) / Math.PI)}° off the sun line
+      <div className="mb-2 text-[11px] text-fg-dim">
+        “{cfg.name}” · {meta.label} · commissioned {cfg.commissionYear.toFixed(0)}
       </div>
+      <p className="mb-3 text-[10px] leading-relaxed text-fg-dim/80">{meta.purpose}</p>
 
       <Section title="Compute">
         <div className="glass-bright mb-2 rounded-lg p-2.5">
-          <div className="mono text-xl text-orbit">{fmtEF(st.effectiveExaflops)}</div>
-          <div className="hud-label">effective throughput</div>
+          <div className="mono text-xl text-orbit">{fmtFlopsEF(st ? st.effectiveExaflops : computeEF)}</div>
+          <div className="hud-label">FP16 AI compute {st ? '· live' : '· rated'}</div>
         </div>
-        <StatRow label="Utilization" value={fmtPct(st.utilization * 100, 1)} accent="orbit" />
-        <Bar value={st.utilization} />
-        <StatRow label="Peak capacity" value={fmtEF(cfg.peakExaflops)} />
-        <StatRow label="GPU pods" value={`${cfg.gpuPods}`} />
-        <StatRow label="Active jobs" value={`${st.activeJobs}`} />
-        <StatRow label="Radiator temp" value={`${st.tempC.toFixed(1)} °C`} accent={st.tempC > 48 ? 'warn' : undefined} />
+        {st && (
+          <>
+            <StatRow label="Utilization" value={fmtPct(st.utilization * 100, 1)} accent="orbit" />
+            <Bar value={st.utilization} />
+            <StatRow label="Active jobs" value={`${st.activeJobs}`} />
+          </>
+        )}
+        <StatRow label="Rated capacity" value={fmtFlopsEF(computeEF)} />
+        <StatRow label="GPU equivalents" value={fmtCount((computeEF * 1e6) / config.gpuEquivTFLOPS)} />
+        <StatRow label="Internal fabric" value={fmtBandwidthGbps(fabricTbpsForPower(cfg.powerMW, epoch.year, config) * 1000)} accent="ion" />
       </Section>
 
-      <Section title="Solar">
+      <Section title="Power & Thermal">
         <div className="glass-bright mb-2 rounded-lg p-2.5">
-          <div className="mono text-xl text-sol">{fmtMW(st.solarMW)}</div>
-          <div className="hud-label">array output · {fmtPct(st.illumination * 100)} illuminated</div>
+          <div className="mono text-xl text-sol">{fmtPowerMW(cfg.powerMW)}</div>
+          <div className="hud-label">electrical draw {st ? `· ${fmtPct(st.illumination * 100)} illuminated` : ''}</div>
         </div>
-        <StatRow label="Panel area" value={`${cfg.panelAreaM2.toLocaleString()} m²`} />
-        <StatRow label="Battery" value={`${fmtPct(st.batteryPct, 1)} ${st.charging ? '▲ charging' : '▼ draining'}`} accent={st.batteryPct < 20 ? 'alert' : 'sol'} />
-        <Bar value={st.batteryPct / 100} color="var(--color-sol)" warnBelow={20} />
-        <StatRow label="Capacity" value={`${cfg.batteryMWh} MWh`} />
+        <StatRow label="Solar array" value={fmtAreaM2(solarAreaM2(cfg.powerMW, epoch.year, config))} accent="sol" />
+        <StatRow label="Radiators" value={fmtAreaM2(radiatorAreaM2(cfg.powerMW, config))} accent="warn" />
+        {st && (
+          <>
+            <StatRow label="Array output" value={fmtMW(st.solarMW)} />
+            <StatRow
+              label="Battery"
+              value={`${fmtPct(st.batteryPct, 1)} ${st.charging ? '▲ charging' : '▼ draining'}`}
+              accent={st.batteryPct < 20 ? 'alert' : 'sol'}
+            />
+            <Bar value={st.batteryPct / 100} color="var(--color-sol)" warnBelow={20} />
+          </>
+        )}
       </Section>
 
       <Section title="Transmission">
-        {st.crosslinks.map((l) => (
+        {st?.crosslinks.map((l) => (
           <StatRow key={l.to} label={`⟷ ${l.to} optical`} value={fmtGbps(l.gbps)} accent="ion" />
         ))}
-        <StatRow label={station.name.split(' (')[0]} value={st.groundVisible ? 'VISIBLE' : 'OCCLUDED'} accent={st.groundVisible ? 'orbit' : undefined} />
-        {st.groundVisible && (
+        <StatRow label={station.name} value={st?.groundVisible ? 'VISIBLE' : 'OCCLUDED'} accent={st?.groundVisible ? 'orbit' : undefined} />
+        {st?.groundVisible && (
           <>
             <StatRow label="Downlink" value={fmtGbps(st.downlinkGbps)} accent="orbit" />
             <StatRow label="Latency" value={fmtMs(st.latencyMs)} />
@@ -112,7 +141,7 @@ function MoonPanel({ baseId }: { baseId?: string }) {
 }
 
 function SunPanel() {
-  const agg = useSimStore((s) => s.aggregates)
+  const epoch = useSimStore((s) => s.epoch)
   return (
     <>
       <div className="sol-text mb-1 text-sm font-semibold">SOL</div>
@@ -121,29 +150,58 @@ function SunPanel() {
         harvests a vanishingly small, civilization-sized sliver.
       </p>
       <StatRow label="Photosphere" value="5,772 K" accent="sol" />
-      <StatRow label="Fleet capture (live)" value={`${(agg.totalSolarGW * 1000).toFixed(1)} MW`} accent="sol" />
+      <StatRow label="Fleet capture (live)" value={fmtPowerMW(epoch.totalPowerMW)} accent="sol" />
       <StatRow label="Status" value="ALWAYS ON · BURNING" accent="warn" />
     </>
   )
 }
 
-function OverviewPanel() {
-  const agg = useSimStore((s) => s.aggregates)
-  const satCount = useSimStore((s) => s.satCount)
+/** The simulation dashboard — the spec's live-statistics readout. */
+function DashboardPanel() {
+  const epoch = useSimStore((s) => s.epoch)
   return (
     <>
-      <div className="hud-label mb-2">Net overview</div>
+      <div className="hud-label mb-2">Constellation dashboard</div>
       <div className="glass-bright mb-3 rounded-lg p-2.5">
-        <div className="mono text-xl text-orbit">{agg.totalEffectiveEF.toFixed(1)} EF</div>
-        <div className="hud-label">aggregate effective compute</div>
+        <div className="mono text-xl text-orbit">{fmtFlopsEF(epoch.totalComputeEF)}</div>
+        <div className="hud-label">total FP16 AI compute</div>
       </div>
-      <StatRow label="Solar harvest" value={`${agg.totalSolarGW.toFixed(2)} GW`} accent="sol" />
-      <StatRow label="Satellites in eclipse" value={`${agg.inEclipse} / ${satCount}`} />
-      <StatRow label="Mean utilization" value={fmtPct(agg.meanUtilization * 100, 1)} accent="orbit" />
-      <Bar value={agg.meanUtilization} />
-      <p className="mt-4 text-[10px] leading-relaxed text-fg-dim">
-        Click a satellite to board it — or the Moon, the Earth, even the Sun. Drag to rotate your vantage point, scroll
-        to travel. Esc steps back out.
+      <StatRow label="Year" value={epoch.year.toFixed(1)} accent="orbit" />
+      <StatRow label="Orbital data centers" value={fmtCount(epoch.totalCount)} accent="orbit" />
+      <StatRow label="Total electrical power" value={fmtPowerMW(epoch.totalPowerMW)} accent="sol" />
+      <StatRow label="Average power / DC" value={fmtPowerMW(epoch.avgPowerMW)} />
+      <StatRow label="Largest data center" value={fmtPowerMW(epoch.largestPowerMW)} accent="sol" />
+      <StatRow label="Largest DC compute" value={fmtFlopsEF(epoch.largestComputeEF)} />
+      <StatRow label="Compute efficiency" value={`${epoch.computeEffTFperKW.toFixed(0)} TF/kW`} />
+      <StatRow label="Solar cell efficiency" value={fmtPct(epoch.solarEffPct, 1)} />
+      <StatRow label="Solar collection area" value={fmtAreaM2(epoch.totalSolarAreaKm2 * 1e6)} accent="sol" />
+      <StatRow label="Radiator area" value={fmtAreaM2(epoch.totalRadiatorAreaKm2 * 1e6)} accent="warn" />
+      <StatRow label="GPU equivalents" value={fmtCount(epoch.gpuEquivalents)} />
+      <StatRow label="Inter-satellite bandwidth" value={fmtBandwidthGbps(epoch.interSatGbps)} accent="ion" />
+      <StatRow label="Earth-orbit bandwidth" value={fmtBandwidthGbps(epoch.earthLinkGbps)} accent="ion" />
+      <StatRow label="Infrastructure mass" value={fmtMassTons(epoch.totalMassTons)} />
+
+      <div className="mt-3 border-t border-edge pt-2">
+        <div className="hud-label mb-1.5">Fleet by class</div>
+        {(Object.keys(CLASS_META) as (keyof typeof CLASS_META)[]).map((cls) => {
+          const n = epoch.counts[cls]
+          if (n === 0) return null
+          const meta = CLASS_META[cls]
+          return (
+            <div key={cls} className="flex items-baseline justify-between py-0.5 text-[11px]">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-1.5 w-1.5 rounded-full" style={{ background: meta.color }} />
+                <span className="text-fg-dim">{meta.label}</span>
+              </span>
+              <span className="mono text-fg">{fmtCount(n)}</span>
+            </div>
+          )
+        })}
+      </div>
+
+      <p className="mt-3 text-[10px] leading-relaxed text-fg-dim">
+        Scrub the timeline below to travel 2026 → 2084. Click any facility to board it — or the Moon, the Earth, even
+        the Sun. Esc steps back out.
       </p>
     </>
   )
@@ -161,7 +219,7 @@ export function RightInspector() {
         ) : focus.kind === 'sun' ? (
           <SunPanel />
         ) : (
-          <OverviewPanel />
+          <DashboardPanel />
         )}
       </div>
     </div>

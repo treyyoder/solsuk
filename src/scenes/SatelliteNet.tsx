@@ -2,46 +2,108 @@ import { useEffect, useMemo, useRef } from 'react'
 import { useFrame, type ThreeEvent } from '@react-three/fiber'
 import { Line } from '@react-three/drei'
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { computeSatBasis, satPositionAndTangent, satPositionAtTheta, sunDirection } from '../simulation/orbits'
-import { getFleet, satData, satIndexOf, simClock, useSimStore } from '../store/simStore'
+import { getFleet, getFleetByClass, satData, satIndexOf, simClock, useSimStore } from '../store/simStore'
+import { CLASS_CAPACITY, FACILITY_CLASSES, type FacilityClass } from '../simulation/epochModel'
 import { useFocusStore } from '../store/focusStore'
 import { useSettingsStore } from '../store/settingsStore'
 import type { Vec3 } from '../simulation/types'
 
 /**
- * Data-center hardware at unit scale (satScale=1): a boxy MLI-wrapped bus with
- * a white radiator, and two LARGE three-segment solar wings with visible cell
- * grids — modeled on real comsat proportions, wings dwarfing the bus.
+ * Six visibly distinct facility generations, each a single merged geometry
+ * (multi-material via groups) rendered as ONE InstancedMesh — one matrix per
+ * facility per frame, which is what keeps ~30k facilities in 2084 rendable.
+ * Dimensions are per-class absolute (a Gigawatt Complex spans ~80× a Pioneer),
+ * with the SIZE slider as a global multiplier.
  */
-const BUS = { x: 0.11, y: 0.1, z: 0.1 }
-const RADIATOR = { x: 0.09, y: 0.006, z: 0.12 }
-const WING = { len: 0.55, width: 0.16, thick: 0.008 }
-const WING_GAP = 0.02 // strut length between bus and wing root
 
-// scratch objects — zero per-frame allocation
-const pos: Vec3 = [0, 0, 0]
-const tangent: Vec3 = [0, 0, 0]
-const sunScratch: Vec3 = [0, 0, 0]
-const vX = new THREE.Vector3()
-const vY = new THREE.Vector3()
-const vZ = new THREE.Vector3()
-const vSun = new THREE.Vector3()
-const vPos = new THREE.Vector3()
-const mBasis = new THREE.Matrix4()
-const mLocal = new THREE.Matrix4()
-const mOut = new THREE.Matrix4()
-const qRoll = new THREE.Quaternion()
-const qTip = new THREE.Quaternion()
-const vScale = new THREE.Vector3(1, 1, 1)
-const V_TMP = new THREE.Vector3()
-const AXIS_X = new THREE.Vector3(1, 0, 0)
-const AXIS_Z = new THREE.Vector3(0, 0, 1)
+interface Part {
+  mat: 'mli' | 'panel' | 'radiator'
+  dims: [number, number, number]
+  pos: [number, number, number]
+}
 
-const COLOR_SUNLIT = new THREE.Color('#ffffff')
-const COLOR_ECLIPSE = new THREE.Color('#41506b')
-const COLOR_SELECTED = new THREE.Color('#ffd9a0')
+const box = (mat: Part['mat'], dims: Part['dims'], pos: Part['pos']): Part => ({ mat, dims, pos })
 
-/** Photovoltaic cell-grid texture: dark blue cells, thin silver busbars, three wing segments. */
+/** X = wing/spine axis, Y = anti-nadir, Z = cross-track */
+const CLASS_PARTS: Record<FacilityClass, Part[]> = {
+  pioneer: [
+    box('mli', [0.11, 0.1, 0.1], [0, 0, 0]),
+    box('panel', [0.55, 0.008, 0.16], [0.37, 0, 0]),
+    box('panel', [0.55, 0.008, 0.16], [-0.37, 0, 0]),
+    box('radiator', [0.09, 0.006, 0.12], [0, 0.055, 0]),
+  ],
+  cluster: [
+    box('mli', [0.16, 0.13, 0.13], [0, 0, 0]),
+    box('panel', [0.9, 0.01, 0.24], [0.62, 0, 0]),
+    box('panel', [0.9, 0.01, 0.24], [-0.62, 0, 0]),
+    box('radiator', [0.3, 0.008, 0.16], [0, 0.08, 0]),
+    box('radiator', [0.3, 0.008, 0.16], [0, -0.08, 0]),
+  ],
+  edge: [
+    box('mli', [0.75, 0.05, 0.05], [0, 0, 0]),
+    box('mli', [0.16, 0.14, 0.14], [0.2, 0, 0]),
+    box('mli', [0.16, 0.14, 0.14], [-0.2, 0, 0]),
+    box('panel', [1.2, 0.01, 0.3], [1.05, 0, 0]),
+    box('panel', [1.2, 0.01, 0.3], [-1.05, 0, 0]),
+    box('radiator', [0.5, 0.3, 0.01], [0, 0.05, 0.3]),
+    box('radiator', [0.5, 0.3, 0.01], [0, 0.05, -0.3]),
+  ],
+  standard: [
+    box('mli', [1.4, 0.07, 0.07], [0, 0, 0]),
+    box('mli', [0.22, 0.19, 0.19], [-0.4, 0, 0]),
+    box('mli', [0.22, 0.19, 0.19], [0, 0, 0]),
+    box('mli', [0.22, 0.19, 0.19], [0.4, 0, 0]),
+    box('panel', [1.9, 0.012, 0.44], [1.75, 0, 0]),
+    box('panel', [1.9, 0.012, 0.44], [-1.75, 0, 0]),
+    box('radiator', [0.95, 0.5, 0.012], [0, 0.1, 0.45]),
+    box('radiator', [0.95, 0.5, 0.012], [0, 0.1, -0.45]),
+  ],
+  hyper: [
+    box('mli', [2.4, 0.1, 0.1], [0, 0, 0]),
+    box('mli', [0.28, 0.24, 0.24], [-0.9, 0, 0]),
+    box('mli', [0.28, 0.24, 0.24], [-0.45, 0, 0]),
+    box('mli', [0.28, 0.24, 0.24], [0, 0, 0]),
+    box('mli', [0.28, 0.24, 0.24], [0.45, 0, 0]),
+    box('mli', [0.28, 0.24, 0.24], [0.9, 0, 0]),
+    box('panel', [2.8, 0.014, 0.55], [2.7, 0, 0.34]),
+    box('panel', [2.8, 0.014, 0.55], [2.7, 0, -0.34]),
+    box('panel', [2.8, 0.014, 0.55], [-2.7, 0, 0.34]),
+    box('panel', [2.8, 0.014, 0.55], [-2.7, 0, -0.34]),
+    box('radiator', [1.5, 0.75, 0.016], [0.65, 0.12, 0.7]),
+    box('radiator', [1.5, 0.75, 0.016], [-0.65, 0.12, 0.7]),
+    box('radiator', [1.5, 0.75, 0.016], [0.65, 0.12, -0.7]),
+    box('radiator', [1.5, 0.75, 0.016], [-0.65, 0.12, -0.7]),
+  ],
+  giga: [
+    box('mli', [4.4, 0.15, 0.15], [0, 0, 0]),
+    box('mli', [0.38, 0.32, 0.32], [-1.8, 0, 0]),
+    box('mli', [0.38, 0.32, 0.32], [-1.08, 0, 0]),
+    box('mli', [0.38, 0.32, 0.32], [-0.36, 0, 0]),
+    box('mli', [0.38, 0.32, 0.32], [0.36, 0, 0]),
+    box('mli', [0.38, 0.32, 0.32], [1.08, 0, 0]),
+    box('mli', [0.38, 0.32, 0.32], [1.8, 0, 0]),
+    box('panel', [4.4, 0.018, 1.0], [4.5, 0, 0.6]),
+    box('panel', [4.4, 0.018, 1.0], [4.5, 0, -0.6]),
+    box('panel', [4.4, 0.018, 1.0], [-4.5, 0, 0.6]),
+    box('panel', [4.4, 0.018, 1.0], [-4.5, 0, -0.6]),
+    box('radiator', [2.4, 1.1, 0.02], [-1.3, 0.18, 1.2]),
+    box('radiator', [2.4, 1.1, 0.02], [0, 0.18, 1.2]),
+    box('radiator', [2.4, 1.1, 0.02], [1.3, 0.18, 1.2]),
+    box('radiator', [2.4, 1.1, 0.02], [-1.3, 0.18, -1.2]),
+    box('radiator', [2.4, 1.1, 0.02], [0, 0.18, -1.2]),
+    box('radiator', [2.4, 1.1, 0.02], [1.3, 0.18, -1.2]),
+  ],
+}
+
+/** half-span (largest |x| or |z| extent) per class — used for chase-camera framing */
+export const CLASS_SPAN: Record<FacilityClass, number> = {
+  pioneer: 0.65, cluster: 1.1, edge: 1.7, standard: 2.7, hyper: 4.1, giga: 6.7,
+}
+
+// ---------------------------------------------------------------- textures
+
 function panelTexture(): THREE.CanvasTexture {
   const w = 512
   const h = 168
@@ -65,12 +127,10 @@ function panelTexture(): THREE.CanvasTexture {
         const shade = 0.75 + ((cx * 7 + cy * 13 + s * 5) % 10) * 0.035
         ctx.fillStyle = `rgb(${Math.round(16 * shade)}, ${Math.round(38 * shade)}, ${Math.round(84 * shade)})`
         ctx.fillRect(x0 + cx * cellW + 1, cy * cellH + 1, cellW - 2, cellH - 2)
-        // cell glint corner
         ctx.fillStyle = 'rgba(140, 180, 240, 0.18)'
         ctx.fillRect(x0 + cx * cellW + 1, cy * cellH + 1, cellW - 2, 2)
       }
     }
-    // silver busbar grid lines
     ctx.strokeStyle = 'rgba(190, 205, 225, 0.55)'
     ctx.lineWidth = 1
     for (let cx = 0; cx <= cols; cx++) {
@@ -86,18 +146,16 @@ function panelTexture(): THREE.CanvasTexture {
       ctx.stroke()
     }
   }
-  // segment hinges
   ctx.fillStyle = '#454f5e'
-  for (let s = 1; s < segs; s++) {
-    ctx.fillRect(s * (segW + segGap) - segGap, 0, segGap, h)
-  }
+  for (let s = 1; s < segs; s++) ctx.fillRect(s * (segW + segGap) - segGap, 0, segGap, h)
   const tex = new THREE.CanvasTexture(canvas)
   tex.colorSpace = THREE.SRGBColorSpace
   tex.anisotropy = 4
+  tex.wrapS = THREE.RepeatWrapping
+  tex.wrapT = THREE.RepeatWrapping
   return tex
 }
 
-/** Gold MLI foil for the bus. */
 function foilTexture(): THREE.CanvasTexture {
   const s = 128
   const canvas = document.createElement('canvas')
@@ -120,11 +178,32 @@ function foilTexture(): THREE.CanvasTexture {
   return tex
 }
 
+// ---------------------------------------------------------------- scratch
+
+const pos: Vec3 = [0, 0, 0]
+const tangent: Vec3 = [0, 0, 0]
+const sunScratch: Vec3 = [0, 0, 0]
+const vX = new THREE.Vector3()
+const vY = new THREE.Vector3()
+const vZ = new THREE.Vector3()
+const vSun = new THREE.Vector3()
+const vPos = new THREE.Vector3()
+const mBasis = new THREE.Matrix4()
+const mLocal = new THREE.Matrix4()
+const mOut = new THREE.Matrix4()
+const qRoll = new THREE.Quaternion()
+const vScale = new THREE.Vector3(1, 1, 1)
+const V_TMP = new THREE.Vector3()
+const AXIS_X = new THREE.Vector3(1, 0, 0)
+const IDENTITY_Q = new THREE.Quaternion()
+
+const COLOR_DEFAULT = new THREE.Color('#ffffff')
+const COLOR_SELECTED = new THREE.Color('#ffd9a0')
+
+const TOTAL_CAPACITY = FACILITY_CLASSES.reduce((n, c) => n + CLASS_CAPACITY[c], 0)
+
 export function SatelliteNet() {
-  const buses = useRef<THREE.InstancedMesh>(null)
-  const radiators = useRef<THREE.InstancedMesh>(null)
-  const wings = useRef<THREE.InstancedMesh>(null)
-  const struts = useRef<THREE.InstancedMesh>(null)
+  const classMeshes = useRef<Partial<Record<FacilityClass, THREE.InstancedMesh>>>({})
   const picks = useRef<THREE.InstancedMesh>(null)
   const dots = useRef<THREE.Points>(null)
 
@@ -132,139 +211,150 @@ export function SatelliteNet() {
   const setHoveredSat = useFocusStore((s) => s.setHoveredSat)
   const showOrbits = useSettingsStore((s) => s.orbits)
   const fleetVersion = useSimStore((s) => s.fleetVersion)
-  const satCount = useSimStore((s) => s.satCount)
   const focus = useFocusStore((s) => s.focus)
 
   const cellTex = useMemo(() => panelTexture(), [])
   const mliTex = useMemo(() => foilTexture(), [])
 
-  // selection highlight via instance colors (fleet is always-sunlit by design,
-  // but the eclipse tint stays for satellites the user drags off-pattern later)
-  useEffect(() => {
-    const apply = () => {
-      const wingMesh = wings.current
-      const busMesh = buses.current
-      if (!wingMesh || !busMesh) return
-      const fleet = getFleet()
-      const f = useFocusStore.getState().focus
-      const selectedId = f.kind === 'satellite' ? f.id : null
-      const stats = useSimStore.getState().stats
-      for (let i = 0; i < fleet.length; i++) {
-        const st = stats[fleet[i].id]
-        const c = fleet[i].id === selectedId ? COLOR_SELECTED : st && st.eclipsed ? COLOR_ECLIPSE : COLOR_SUNLIT
-        wingMesh.setColorAt(i * 2, c)
-        wingMesh.setColorAt(i * 2 + 1, c)
-        busMesh.setColorAt(i, c)
+  const materials = useMemo(
+    () => ({
+      mli: new THREE.MeshStandardMaterial({ map: mliTex, color: '#c9a86a', metalness: 0.75, roughness: 0.45 }),
+      panel: new THREE.MeshStandardMaterial({
+        map: cellTex,
+        metalness: 0.45,
+        roughness: 0.3,
+        emissive: '#12305e',
+        emissiveIntensity: 0.22,
+        emissiveMap: cellTex,
+      }),
+      radiator: new THREE.MeshStandardMaterial({
+        color: '#eef2f7',
+        metalness: 0.2,
+        roughness: 0.4,
+        emissive: '#ff9a66',
+        emissiveIntensity: 0.05,
+      }),
+    }),
+    [cellTex, mliTex],
+  )
+
+  /** merged multi-material geometry per class: one bucket-merge per material, then group-merge */
+  const classGeometry = useMemo(() => {
+    const out = {} as Record<FacilityClass, { geometry: THREE.BufferGeometry; materials: THREE.Material[] }>
+    const MAT_ORDER: Part['mat'][] = ['mli', 'panel', 'radiator']
+    for (const cls of FACILITY_CLASSES) {
+      const buckets: Record<Part['mat'], THREE.BufferGeometry[]> = { mli: [], panel: [], radiator: [] }
+      for (const part of CLASS_PARTS[cls]) {
+        const g = new THREE.BoxGeometry(...part.dims)
+        g.translate(...part.pos)
+        buckets[part.mat].push(g)
       }
-      if (wingMesh.instanceColor) wingMesh.instanceColor.needsUpdate = true
-      if (busMesh.instanceColor) busMesh.instanceColor.needsUpdate = true
+      const merged: THREE.BufferGeometry[] = []
+      const mats: THREE.Material[] = []
+      for (const m of MAT_ORDER) {
+        if (!buckets[m].length) continue
+        merged.push(mergeGeometries(buckets[m], false)!)
+        mats.push(materials[m])
+      }
+      out[cls] = { geometry: mergeGeometries(merged, true)!, materials: mats }
     }
-    apply()
-    return useSimStore.subscribe(apply)
+    return out
+  }, [materials])
+
+  // selection tint via per-instance colors — reapplied on fleet/focus changes
+  useEffect(() => {
+    const f = useFocusStore.getState().focus
+    const selectedId = f.kind === 'satellite' ? f.id : null
+    const byClass = getFleetByClass()
+    for (const cls of FACILITY_CLASSES) {
+      const mesh = classMeshes.current[cls]
+      if (!mesh) continue
+      const arr = byClass[cls]
+      for (let k = 0; k < arr.length; k++) {
+        mesh.setColorAt(k, arr[k].id === selectedId ? COLOR_SELECTED : COLOR_DEFAULT)
+      }
+      if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true
+    }
   }, [fleetVersion, focus])
 
   useFrame(() => {
-    const busMesh = buses.current
-    const radMesh = radiators.current
-    const wingMesh = wings.current
-    const strutMesh = struts.current
     const pickMesh = picks.current
-    if (!busMesh || !radMesh || !wingMesh || !strutMesh || !pickMesh) return
-
+    if (!pickMesh) return
     const t = simClock.t
     const fleet = getFleet()
+    const byClass = getFleetByClass()
     const S = useSettingsStore.getState().satScale
-    const pickR = Math.min(Math.max(S * 1.4, 0.05), 0.25)
     sunDirection(t, sunScratch)
     vSun.set(sunScratch[0], sunScratch[1], sunScratch[2])
 
-    for (let i = 0; i < fleet.length; i++) {
-      const cfg = fleet[i]
-      // tangent computed analytically (d/dθ of the orbit formula), not via a
-      // second "moment later" sample — that trick silently degenerates once
-      // simClock.t is large enough to swallow a small time offset entirely
-      satPositionAndTangent(cfg, t, sunScratch, pos, tangent)
-      satData.positions[i * 3] = pos[0]
-      satData.positions[i * 3 + 1] = pos[1]
-      satData.positions[i * 3 + 2] = pos[2]
+    let globalIdx = 0
+    for (const cls of FACILITY_CLASSES) {
+      const mesh = classMeshes.current[cls]
+      const arr = byClass[cls]
+      if (mesh) mesh.count = arr.length
+      for (let k = 0; k < arr.length; k++, globalIdx++) {
+        const cfg = arr[k]
+        satPositionAndTangent(cfg, t, sunScratch, pos, tangent)
+        satData.positions[globalIdx * 3] = pos[0]
+        satData.positions[globalIdx * 3 + 1] = pos[1]
+        satData.positions[globalIdx * 3 + 2] = pos[2]
 
-      vPos.set(pos[0], pos[1], pos[2])
-      // nadir frame: Y radial-out, X along-track (wing axis), Z completes
-      vY.copy(vPos).normalize()
-      vX.set(tangent[0], tangent[1], tangent[2])
-      vZ.crossVectors(vX, vY).normalize()
-      vX.crossVectors(vY, vZ).normalize()
-      mBasis.makeBasis(vX, vY, vZ).setPosition(vPos)
+        vPos.set(pos[0], pos[1], pos[2])
+        // nadir frame: Y radial-out, X along-track (wing axis), Z completes
+        vY.copy(vPos).normalize()
+        vX.set(tangent[0], tangent[1], tangent[2])
+        vZ.crossVectors(vX, vY).normalize()
+        vX.crossVectors(vY, vZ).normalize()
+        mBasis.makeBasis(vX, vY, vZ).setPosition(vPos)
 
-      // bus
-      mLocal.compose(V_TMP.set(0, 0, 0), IDENTITY_Q, vScale.setScalar(S))
-      mOut.multiplyMatrices(mBasis, mLocal)
-      busMesh.setMatrixAt(i, mOut)
-      // radiator on the anti-nadir face
-      mLocal.compose(V_TMP.set(0, (BUS.y / 2 + RADIATOR.y / 2) * S, 0), IDENTITY_Q, vScale.setScalar(S))
-      mOut.multiplyMatrices(mBasis, mLocal)
-      radMesh.setMatrixAt(i, mOut)
-      // pick target
-      mLocal.compose(V_TMP.set(0, 0, 0), IDENTITY_Q, vScale.setScalar(pickR / 0.1))
-      mOut.multiplyMatrices(mBasis, mLocal)
-      pickMesh.setMatrixAt(i, mOut)
+        // sun-tracking roll of the whole body about the wing axis
+        const sy = vSun.dot(vY)
+        const sz = vSun.dot(vZ)
+        qRoll.setFromAxisAngle(AXIS_X, Math.atan2(sz, sy))
 
-      // sun-tracking roll about the wing (X) axis: panel normal starts at +Y
-      const sy = vSun.dot(vY)
-      const sz = vSun.dot(vZ)
-      qRoll.setFromAxisAngle(AXIS_X, Math.atan2(sz, sy))
+        if (mesh) {
+          mLocal.compose(V_TMP.set(0, 0, 0), qRoll, vScale.setScalar(S))
+          mOut.multiplyMatrices(mBasis, mLocal)
+          mesh.setMatrixAt(k, mOut)
+        }
 
-      for (let side = 0; side < 2; side++) {
-        const dir = side === 0 ? 1 : -1
-        // strut
-        qTip.copy(qRoll).multiply(Q_ROT_Z90)
-        mLocal.compose(
-          V_TMP.set(dir * (BUS.x / 2 + WING_GAP / 2) * S, 0, 0),
-          qTip,
-          vScale.set(S, S, S),
-        )
+        // pick target sized to the facility
+        const pickR = Math.min(Math.max(S * CLASS_SPAN[cls] * 0.9, 0.05), 1.2)
+        mLocal.compose(V_TMP.set(0, 0, 0), IDENTITY_Q, vScale.setScalar(pickR / 0.1))
         mOut.multiplyMatrices(mBasis, mLocal)
-        strutMesh.setMatrixAt(i * 2 + side, mOut)
-        // wing
-        mLocal.compose(
-          V_TMP.set(dir * (BUS.x / 2 + WING_GAP + WING.len / 2) * S, 0, 0),
-          qRoll,
-          vScale.set(S, S, S),
-        )
-        mOut.multiplyMatrices(mBasis, mLocal)
-        wingMesh.setMatrixAt(i * 2 + side, mOut)
+        pickMesh.setMatrixAt(globalIdx, mOut)
       }
+      if (mesh) mesh.instanceMatrix.needsUpdate = true
     }
-    busMesh.instanceMatrix.needsUpdate = true
-    radMesh.instanceMatrix.needsUpdate = true
-    wingMesh.instanceMatrix.needsUpdate = true
-    strutMesh.instanceMatrix.needsUpdate = true
+    pickMesh.count = fleet.length
     pickMesh.instanceMatrix.needsUpdate = true
-    // the net-glint layer shares satData.positions directly
+
     if (dots.current) {
       const attr = dots.current.geometry.attributes.position as THREE.BufferAttribute | undefined
-      if (attr) attr.needsUpdate = true
+      if (attr) {
+        attr.needsUpdate = true
+        dots.current.geometry.setDrawRange(0, fleet.length)
+      }
     }
   })
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation()
     if (e.instanceId === undefined) return
-    setFocus({ kind: 'satellite', id: getFleet()[e.instanceId].id })
+    const cfg = getFleet()[e.instanceId]
+    if (cfg) setFocus({ kind: 'satellite', id: cfg.id })
   }
 
-  /** focused satellite's full orbit ring (its personal pattern) */
+  /** focused facility's full orbit ring (its personal pattern) */
   const focusRing = useMemo(() => {
     if (focus.kind !== 'satellite') return null
     const cfg = getFleet()[satIndexOf(focus.id)]
-    if (!cfg) return null
+    if (!cfg || cfg.id !== focus.id) return null
     const sd: Vec3 = [0, 0, 0]
     sunDirection(simClock.t, sd)
     computeSatBasis(cfg, sd)
     const pts: [number, number, number][] = []
     for (let k = 0; k <= 128; k++) {
-      // sweep the ring shape directly by angle — no time-based phase math,
-      // so there's nothing here for a huge simClock.t to corrupt
       const theta = cfg.phase + (k / 128) * Math.PI * 2
       const p: Vec3 = [0, 0, 0]
       satPositionAtTheta(cfg, theta, p)
@@ -274,37 +364,46 @@ export function SatelliteNet() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focus, fleetVersion])
 
+  // glint layer buffer — replaced whenever the positions array identity changes
+  const glintGeometry = useMemo(() => {
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(satData.positions, 3))
+    geo.setDrawRange(0, getFleet().length)
+    return geo
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fleetVersion])
+
   return (
-    <group key={`${fleetVersion}-${satCount}`}>
-      {/* net-glint layer: one additive point per data center so the whole
+    <group>
+      {/* net-glint layer: one additive point per facility so the whole
           constellation reads from any distance even at tiny hardware scale */}
-      <points ref={dots} frustumCulled={false}>
-        <bufferGeometry>
-          <bufferAttribute attach="attributes-position" args={[satData.positions, 3]} />
-        </bufferGeometry>
+      <points ref={dots} geometry={glintGeometry} frustumCulled={false}>
         <pointsMaterial
-          size={2.6}
+          size={2.4}
           sizeAttenuation={false}
           color="#bcd8ff"
           transparent
-          opacity={0.85}
+          opacity={0.8}
           depthWrite={false}
           blending={THREE.AdditiveBlending}
         />
       </points>
 
-      {/* invisible generous pick targets */}
+      {/* invisible generous pick targets (one shared mesh, global fleet order) */}
       <instancedMesh
         ref={picks}
-        args={[undefined, undefined, satCount]}
+        args={[undefined, undefined, TOTAL_CAPACITY]}
         frustumCulled={false}
         visible={false}
         onClick={handleClick}
         onPointerMove={(e) => {
           e.stopPropagation()
           if (e.instanceId !== undefined) {
-            setHoveredSat(getFleet()[e.instanceId].id)
-            document.body.style.cursor = 'pointer'
+            const cfg = getFleet()[e.instanceId]
+            if (cfg) {
+              setHoveredSat(cfg.id)
+              document.body.style.cursor = 'pointer'
+            }
           }
         }}
         onPointerOut={() => {
@@ -316,37 +415,23 @@ export function SatelliteNet() {
         <meshBasicMaterial />
       </instancedMesh>
 
-      {/* bus — MLI gold foil */}
-      <instancedMesh ref={buses} args={[undefined, undefined, satCount]} frustumCulled={false} raycast={() => null}>
-        <boxGeometry args={[BUS.x, BUS.y, BUS.z]} />
-        <meshStandardMaterial map={mliTex} color="#c9a86a" metalness={0.75} roughness={0.45} />
-      </instancedMesh>
+      {/* one instanced mesh per facility generation */}
+      {FACILITY_CLASSES.map((cls) => (
+        <instancedMesh
+          key={cls}
+          args={[classGeometry[cls].geometry, classGeometry[cls].materials as unknown as THREE.Material, CLASS_CAPACITY[cls]]}
+          frustumCulled={false}
+          raycast={() => null}
+          ref={(m) => {
+            classMeshes.current[cls] = m ?? undefined
+          }}
+        />
+      ))}
 
-      {/* radiator plate */}
-      <instancedMesh ref={radiators} args={[undefined, undefined, satCount]} frustumCulled={false} raycast={() => null}>
-        <boxGeometry args={[RADIATOR.x, RADIATOR.y, RADIATOR.z]} />
-        <meshStandardMaterial color="#e8edf4" metalness={0.3} roughness={0.35} />
-      </instancedMesh>
-
-      {/* solar wings — large, three-segment, visible cell grid */}
-      <instancedMesh ref={wings} args={[undefined, undefined, satCount * 2]} frustumCulled={false} raycast={() => null}>
-        <boxGeometry args={[WING.len, WING.thick, WING.width]} />
-        <meshStandardMaterial map={cellTex} metalness={0.45} roughness={0.3} emissive="#12305e" emissiveIntensity={0.22} emissiveMap={cellTex} />
-      </instancedMesh>
-
-      {/* struts */}
-      <instancedMesh ref={struts} args={[undefined, undefined, satCount * 2]} frustumCulled={false} raycast={() => null}>
-        <cylinderGeometry args={[0.006, 0.006, WING_GAP + 0.02, 6]} />
-        <meshStandardMaterial color="#5b6b80" metalness={0.9} roughness={0.4} />
-      </instancedMesh>
-
-      {/* focused satellite's own orbital pattern */}
+      {/* focused facility's own orbital pattern */}
       {showOrbits && focusRing && (
         <Line points={focusRing} color="#2c4a6e" transparent opacity={0.35} lineWidth={1} />
       )}
     </group>
   )
 }
-
-const IDENTITY_Q = new THREE.Quaternion()
-const Q_ROT_Z90 = new THREE.Quaternion().setFromAxisAngle(AXIS_Z, Math.PI / 2)
