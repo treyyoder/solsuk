@@ -95,17 +95,17 @@ export function SatelliteDetail() {
         <sphereGeometry args={[0.12, 8, 8]} />
         <meshBasicMaterial color="#ff5c6a" transparent toneMapped={false} />
       </mesh>
-      {/* optical crosslinks — conceptual rendering of the laser mesh */}
+      {/* optical crosslinks — purple, the cooperation color of the fabric */}
       {[0, 1].map((k) => (
         <line key={k}>
           <primitive object={linkGeos[k]} attach="geometry" />
-          <lineBasicMaterial color="#6fe3d2" transparent opacity={0.65} toneMapped={false} depthWrite={false} />
+          <lineBasicMaterial color="#b44cff" transparent opacity={0.7} toneMapped={false} depthWrite={false} />
         </line>
       ))}
-      {/* downlink beam to its home city */}
+      {/* downlink beam to its home city — green, data heading home */}
       <line>
         <primitive object={linkGeos[2]} attach="geometry" />
-        <lineBasicMaterial color="#ffb454" transparent opacity={0.5} toneMapped={false} depthWrite={false} />
+        <lineBasicMaterial color="#39ff8e" transparent opacity={0.55} toneMapped={false} depthWrite={false} />
       </line>
     </group>
   )

@@ -1,7 +1,7 @@
 import { satConfigOf, useSimStore } from '../store/simStore'
 import { useFocusStore } from '../store/focusStore'
 import { MOON_BASES } from '../simulation/moonBases'
-import { GROUND_STATIONS } from '../simulation/groundStations'
+import { activeCityCount, GROUND_STATIONS, MAX_CITIES } from '../simulation/groundStations'
 import {
   CLASS_META,
   fabricTbpsForPower,
@@ -179,6 +179,7 @@ function DashboardPanel() {
       <StatRow label="GPU equivalents" value={fmtCount(epoch.gpuEquivalents)} />
       <StatRow label="Inter-satellite bandwidth" value={fmtBandwidthGbps(epoch.interSatGbps)} accent="ion" />
       <StatRow label="Earth-orbit bandwidth" value={fmtBandwidthGbps(epoch.earthLinkGbps)} accent="ion" />
+      <StatRow label="Cities served" value={`${activeCityCount(epoch.year)} / ${MAX_CITIES}`} accent="orbit" />
       <StatRow label="Infrastructure mass" value={fmtMassTons(epoch.totalMassTons)} />
 
       <div className="mt-3 border-t border-edge pt-2">

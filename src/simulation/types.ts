@@ -54,6 +54,8 @@ export interface GroundStation {
   name: string
   latDeg: number
   lonDeg: number
+  /** urban agglomeration population, millions (list is sorted descending on this) */
+  popM: number
 }
 
 export interface ExperimentState {

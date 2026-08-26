@@ -7,7 +7,7 @@ import {
   type FacilityClass,
   type SimConfig,
 } from './epochModel'
-import { GROUND_STATIONS } from './groundStations'
+import { activeCityCount, GROUND_STATIONS } from './groundStations'
 
 const CALLSIGNS = [
   'Helios', 'Aurora', 'Zenith', 'Vanta', 'Kestrel', 'Umbra', 'Corona', 'Nadir',
@@ -61,14 +61,17 @@ export function facilityConfigFor(cls: FacilityClass, k: number, config: SimConf
   const meta = CLASS_META[cls]
   const id = `${meta.prefix}-${String(k + 1).padStart(4, '0')}`
   const callsign = `${CALLSIGNS[k % CALLSIGNS.length]}-${Math.floor(k / CALLSIGNS.length) + 1}`
+  const commissioned = commissionYear(cls, k, config)
   return {
     id,
     name: callsign,
     cls,
     k,
-    commissionYear: commissionYear(cls, k, config),
+    commissionYear: commissioned,
     powerMW: facilityPowerMW(cls, k, config),
     ...slotFor(cls, k),
-    groundStationId: GROUND_STATIONS[(SLOT_OFFSET[cls] + k) % GROUND_STATIONS.length].id,
+    // home city drawn from the cities already on the net when it launched —
+    // early facilities serve the megacities, later ones spread down the list
+    groundStationId: GROUND_STATIONS[(SLOT_OFFSET[cls] + k) % activeCityCount(commissioned)].id,
   }
 }
