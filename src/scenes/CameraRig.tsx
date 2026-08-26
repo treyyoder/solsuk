@@ -20,6 +20,50 @@ const sunDirScratch: Vec3 = [0, 0, 0]
 const posScratch: Vec3 = [0, 0, 0]
 const vCam = new THREE.Vector3()
 
+const OVERVIEW_DIST = 17
+/** angular offset of the sun from screen-center in the initial framing — kept
+ * inside the ~22.5°(V)/~36°(H) half-FOV at 45° fov so it's clearly visible,
+ * not clipped, and not dead-center either */
+const OVERVIEW_YAW = (14 * Math.PI) / 180
+const OVERVIEW_PITCH = (14 * Math.PI) / 180
+
+/**
+ * Initial "overview" framing: camera sits on Earth's dark side (opposite the
+ * sun at sim start, t=0), looking at Earth from a direction rotated
+ * OVERVIEW_YAW/PITCH off the exact sun line. Since the camera's forward
+ * vector is what rotated, the sun itself doesn't move — it lands offset
+ * from screen-center by exactly that angle. Yawing the gaze toward the
+ * sun-line's "right" axis puts the sun to that gaze's LEFT (you turned
+ * right, so what was ahead is now on your left); pitching the gaze DOWN
+ * puts the sun, at the same height, ABOVE the new gaze — together, upper-left.
+ * Derived from the actual sun direction at t=0, not a disconnected literal.
+ */
+function computeDefaultOverviewPose(): { position: [number, number, number]; target: [number, number, number] } {
+  const sunDir0: Vec3 = [0, 0, 0]
+  sunDirection(0, sunDir0) // f0: direction toward the sun; has y=0 (ecliptic)
+  // right0 = cross(worldUp, f0) — unit length, also y=0, so cross(f0,right0)=worldUp exactly
+  const right0: Vec3 = [sunDir0[2], 0, -sunDir0[0]]
+
+  // yaw: rotate f0 toward -right0 within the horizontal plane (puts the sun,
+  // which stays put, on the LEFT of the new gaze — verified empirically:
+  // +right0 landed it upper-RIGHT instead)
+  const cy = Math.cos(OVERVIEW_YAW)
+  const sy = Math.sin(OVERVIEW_YAW)
+  const hx = sunDir0[0] * cy - right0[0] * sy
+  const hz = sunDir0[2] * cy - right0[2] * sy
+
+  // pitch: tilt that horizontal gaze down toward -worldUp
+  const cp = Math.cos(OVERVIEW_PITCH)
+  const sp = Math.sin(OVERVIEW_PITCH)
+  const forward: Vec3 = [hx * cp, -sp, hz * cp]
+
+  return {
+    position: [-forward[0] * OVERVIEW_DIST, -forward[1] * OVERVIEW_DIST, -forward[2] * OVERVIEW_DIST],
+    target: [0, 0, 0],
+  }
+}
+const DEFAULT_OVERVIEW_POSE = computeDefaultOverviewPose()
+
 /** live position of the focused satellite — falls back to direct orbit math before the first frame */
 function liveSatPos(id: string, out: Vec3): Vec3 {
   const i = satIndexOf(id) * 3
@@ -67,15 +111,17 @@ function staticPoseFor(focus: FocusTarget): { position: [number, number, number]
       }
     }
     default:
-      return { position: [9.5, 4.6, 13.5], target: [0, 0, 0] }
+      return DEFAULT_OVERVIEW_POSE
   }
 }
+
+const noDrift = new URLSearchParams(window.location.search).has('nodrift')
 
 export function CameraRig() {
   const ref = useRef<CameraControlsImpl>(null)
   const focus = useFocusStore((s) => s.focus)
-  const landing = useFocusStore((s) => s.landing)
-  const autoRotate = useSettingsStore((s) => s.autoRotate)
+  const landing = useFocusStore((s) => s.landing) && !noDrift
+  const autoRotate = useSettingsStore((s) => s.autoRotate) && !noDrift
 
   /** 'approach' = cinematic fly-in toward a moving object; 'chase' = translate with it */
   const mode = useRef<'idle' | 'approach' | 'chase'>('idle')

@@ -1,5 +1,6 @@
 import { create } from 'zustand'
-import { DEFAULT_SAT_COUNT, DEFAULT_TIME_SCALE, MAX_SAT_COUNT } from '../simulation/constants'
+import { DEFAULT_SAT_COUNT, DEFAULT_SPEED_LEVEL, MAX_SAT_COUNT, MAX_SPEED_LEVEL } from '../simulation/constants'
+import { timeScaleForLevel } from '../utils/time'
 import { generateFleet, satConfigFor } from '../simulation/fleet'
 import { illumination } from '../simulation/eclipse'
 import { satPosition, sunDirection } from '../simulation/orbits'
@@ -29,6 +30,9 @@ export const satIndexOf = (id: string): number => satIndex.get(id) ?? 0
 export const satConfigOf = (id: string): SatelliteConfig => fleet[satIndexOf(id)]
 
 interface SimState {
+  /** 1..MAX_SPEED_LEVEL; each level doubles simulated hours/sec (see utils/time.ts) */
+  speedLevel: number
+  /** sim-clock seconds advanced per real second, derived from speedLevel */
   timeScale: number
   paused: boolean
   satCount: number
@@ -37,7 +41,7 @@ interface SimState {
   stats: Record<string, SatelliteStats>
   moon: MoonStats
   aggregates: FleetAggregates
-  setTimeScale: (s: number) => void
+  setSpeedLevel: (level: number) => void
   togglePause: () => void
   setSatCount: (n: number) => void
   addSatellites: (n: number) => string
@@ -57,14 +61,18 @@ const initialMoon: MoonStats = {
 }
 
 export const useSimStore = create<SimState>((set, get) => ({
-  timeScale: DEFAULT_TIME_SCALE,
+  speedLevel: DEFAULT_SPEED_LEVEL,
+  timeScale: timeScaleForLevel(DEFAULT_SPEED_LEVEL),
   paused: false,
   satCount: DEFAULT_SAT_COUNT,
   fleetVersion: 0,
   stats: buildInitialStats(fleet),
   moon: initialMoon,
   aggregates: { totalEffectiveEF: 0, totalSolarGW: 0, inEclipse: 0, meanUtilization: 0.7 },
-  setTimeScale: (timeScale) => set({ timeScale }),
+  setSpeedLevel: (level) => {
+    const speedLevel = Math.max(1, Math.min(MAX_SPEED_LEVEL, Math.round(level)))
+    set({ speedLevel, timeScale: timeScaleForLevel(speedLevel) })
+  },
   togglePause: () => set((s) => ({ paused: !s.paused })),
 
   setSatCount: (n) => {
@@ -138,7 +146,11 @@ export function startSimLoop() {
     const state = useSimStore.getState()
     if (state.paused) return
     const t = simClock.t
-    const dt = Math.min(wallDt * state.timeScale, 30)
+    // clamp the REAL elapsed time (guards a huge catch-up jump after the tab
+    // was backgrounded), then scale by timeScale — capping the scaled result
+    // instead would throttle stat evolution at high speed levels and decouple
+    // it from the orbit motion, which is scaled by the same timeScale unclamped
+    const dt = Math.min(wallDt, 1) * state.timeScale
 
     sunDirection(t, sunDirCurrent)
 

@@ -4,6 +4,9 @@ import { simClock, useSimStore } from '../store/simStore'
 import { usePerfStore } from '../store/perfStore'
 import { useSettingsStore, type Quality } from '../store/settingsStore'
 import { fmtSimClock } from '../utils/format'
+import { fmtSimRate } from '../utils/time'
+import { MAX_SPEED_LEVEL } from '../simulation/constants'
+import { SolsukLogo } from './SolsukLogo'
 
 function SimClockReadout() {
   const [, force] = useState(0)
@@ -18,8 +21,8 @@ export function TopBar() {
   const focus = useFocusStore((s) => s.focus)
   const setFocus = useFocusStore((s) => s.setFocus)
   const showLanding = useFocusStore((s) => s.showLanding)
-  const timeScale = useSimStore((s) => s.timeScale)
-  const setTimeScale = useSimStore((s) => s.setTimeScale)
+  const speedLevel = useSimStore((s) => s.speedLevel)
+  const setSpeedLevel = useSimStore((s) => s.setSpeedLevel)
   const paused = useSimStore((s) => s.paused)
   const togglePause = useSimStore((s) => s.togglePause)
   const fps = usePerfStore((s) => s.fps)
@@ -29,8 +32,8 @@ export function TopBar() {
 
   return (
     <div className="glass pointer-events-auto flex h-12 items-center gap-3 rounded-xl px-4">
-      <button onClick={showLanding} className="orbit-text font-display text-sm font-bold tracking-[0.28em]">
-        SOLSUK
+      <button onClick={showLanding} aria-label="SOLSUK — home" className="font-display text-sm font-bold tracking-[0.28em]">
+        <SolsukLogo />
       </button>
       <div className="mx-1 h-5 w-px bg-edge" />
       <nav className="flex items-center gap-1.5 text-[11px]">
@@ -53,16 +56,18 @@ export function TopBar() {
       <button onClick={togglePause} className={`btn-ghost h-7 w-7 rounded-md text-xs ${paused ? '' : 'active'}`} title={paused ? 'Resume' : 'Pause'}>
         {paused ? '▶' : '❚❚'}
       </button>
-      <div className="flex items-center gap-1">
-        {[1, 30, 120].map((s) => (
-          <button
-            key={s}
-            onClick={() => setTimeScale(s)}
-            className={`btn-ghost rounded px-2 py-1 text-[10px] ${timeScale === s ? 'active' : ''}`}
-          >
-            {s}×
-          </button>
-        ))}
+      <div className="flex items-center gap-2" title="Time warp: each level doubles simulated hours per real second">
+        <input
+          type="range"
+          min={1}
+          max={MAX_SPEED_LEVEL}
+          step={1}
+          value={speedLevel}
+          onChange={(e) => setSpeedLevel(parseInt(e.target.value))}
+          className="w-24"
+        />
+        <span className="mono w-8 shrink-0 text-[10px] text-orbit">{speedLevel}×</span>
+        <span className="mono w-16 shrink-0 text-[9px] text-fg-dim">{fmtSimRate(speedLevel)}</span>
       </div>
 
       <div className="mx-1 h-5 w-px bg-edge" />

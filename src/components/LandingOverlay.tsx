@@ -1,17 +1,22 @@
 import { useFocusStore } from '../store/focusStore'
+import { useSimStore } from '../store/simStore'
+import { SolsukLogo } from './SolsukLogo'
 
 export function LandingOverlay() {
   const dismissLanding = useFocusStore((s) => s.dismissLanding)
   const setFocus = useFocusStore((s) => s.setFocus)
+  const satCount = useSimStore((s) => s.satCount)
 
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center bg-gradient-to-b from-void/55 via-transparent to-void/80">
       <div className="fade-up flex flex-col items-center px-6 text-center" style={{ animationDelay: '200ms' }}>
         <div className="hud-label mb-4 tracking-[0.5em] text-ion">ORBITAL COMPUTE ERA · 2061</div>
-        <h1 className="title-glow font-display text-6xl font-bold tracking-[0.16em] md:text-7xl">SOLSUK</h1>
-        <p className="mt-4 max-w-md text-sm leading-relaxed text-fg-dim">
-          The heavy thinking moved off-world. Forty-eight solar data centers ride the net above Earth, the Moon keeps
-          its own counsel, and the Sun pays for all of it.
+        <h1 className="font-display text-6xl font-bold tracking-[0.16em] md:text-7xl">
+          <SolsukLogo />
+        </h1>
+        <p className="neon-text mt-4 max-w-md text-sm leading-relaxed">
+          The heavy thinking moved off-world. {satCount.toLocaleString()} solar data centers ride the net above
+          Earth, the Moon keeps its own counsel, and the Sun pays for all of it.
         </p>
         <button
           onClick={() => {

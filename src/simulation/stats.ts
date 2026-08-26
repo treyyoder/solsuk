@@ -44,7 +44,8 @@ export function tickSatellite(
   utilization = Math.max(0.05, Math.min(0.99, utilization))
   const effectiveExaflops = cfg.peakExaflops * utilization
   const activeJobs = Math.max(4, Math.round(prev.activeJobs + (rng() - 0.5 + (utilization - 0.7) * 0.4) * 24 * dt))
-  const tempC = prev.tempC + ((14 + utilization * 42 - prev.tempC) * 0.05 + (rng() - 0.5) * 0.3) * dt
+  // clamped: at high time-warp levels dt can be huge, and this term is otherwise unbounded
+  const tempC = Math.max(-40, Math.min(140, prev.tempC + ((14 + utilization * 42 - prev.tempC) * 0.05 + (rng() - 0.5) * 0.3) * dt))
 
   // --- solar / battery ---
   const solarMW = (cfg.panelAreaM2 * SOLAR_KW_PER_M2 * illum * TRACKING_COS) / 1000

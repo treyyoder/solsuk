@@ -12,6 +12,8 @@
   --color-ion: #6fe3d2;
   --color-warn: #ff8a5c;
   --color-alert: #ff5c6a;
+  --color-neon: #39ff8e;
+  --color-neon-purple: #b44cff;
   --color-fg: #d9e2ee;
   --color-fg-dim: #74839a;
   --font-display: 'Space Grotesk', 'Segoe UI', system-ui, sans-serif;
@@ -84,6 +86,62 @@ body,
   text-shadow:
     0 0 8px rgba(255, 180, 84, 0.55),
     0 0 28px rgba(255, 180, 84, 0.25);
+}
+
+.neon-text {
+  color: var(--color-neon);
+  text-shadow:
+    0 0 8px rgba(57, 255, 142, 0.5),
+    0 0 26px rgba(57, 255, 142, 0.22);
+}
+
+/* ---- SOLSUK wordmark: S/L sun-yellow, O a spinning sun disc, SUK a green→purple gradient ---- */
+.solsuk-gradient-suk {
+  background: linear-gradient(90deg, var(--color-neon) 0%, var(--color-neon-purple) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.solsuk-sun-letter {
+  display: inline-block;
+  position: relative;
+  width: 0.8em;
+  height: 0.8em;
+  margin: 0 0.02em;
+  border-radius: 50%;
+  overflow: hidden;
+  vertical-align: -0.08em;
+  background: radial-gradient(circle at 35% 32%, #fff6d8, #ffcf6b 35%, #ff9a2e 62%, #b3450e 100%);
+  box-shadow:
+    0 0 0.4em 0.02em rgba(255, 170, 60, 0.85),
+    0 0 0.9em rgba(255, 140, 40, 0.35);
+}
+.solsuk-sun-letter__surface {
+  position: absolute;
+  inset: -40%;
+  background-size: cover;
+  background-position: center;
+  animation: solsuk-sun-spin 16s linear infinite;
+  mix-blend-mode: overlay;
+  opacity: 0.9;
+}
+.solsuk-sun-letter__limb {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 38% 34%, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0) 45%),
+    radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0) 55%, rgba(110, 25, 0, 0.55) 100%);
+}
+@keyframes solsuk-sun-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .hud-label {
@@ -200,14 +258,6 @@ input[type='range']::-moz-range-thumb {
 }
 .pulse-glow {
   animation: pulse-glow 2.4s ease-in-out infinite;
-}
-
-.title-glow {
-  background: linear-gradient(120deg, #4da6ff 0%, #a8d4ff 35%, #ffb454 75%, #ffd9a0 100%);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  filter: drop-shadow(0 0 22px rgba(77, 166, 255, 0.35));
 }
 
 .prob-fill {
