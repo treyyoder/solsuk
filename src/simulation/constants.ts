@@ -8,19 +8,22 @@ export const ATMOSPHERE_RADIUS = 3.85
 
 /** Earth's axial tilt, radians */
 export const EARTH_TILT = (23.4 * Math.PI) / 180
-/** seconds of simTime for one Earth rotation */
-export const EARTH_DAY = 240
+/** seconds for one Earth rotation — a real mean solar day. Now that speed
+ * level 1 is genuine real-time (see utils/time.ts), this and the periods
+ * below must be actual astronomical durations or the clockwork reads as
+ * "wildly off" the moment you compare it to a wall clock. */
+export const EARTH_DAY = 86400
 
 export const MOON_RADIUS = 0.9
 export const MOON_ORBIT_RADIUS = 40
 export const MOON_INCLINATION = (5.1 * Math.PI) / 180
-/** seconds of simTime for one lunar orbit (stylized) */
-export const MOON_PERIOD = 6500
+/** seconds for one lunar orbit — real sidereal month (27.32 days) */
+export const MOON_PERIOD = 27.321661 * 86400
 
 export const SUN_DISTANCE = 300
 export const SUN_VISUAL_RADIUS = 9
-/** seconds of simTime for the sun direction to precess once around the ecliptic ("a year") */
-export const SUN_PERIOD = 60000
+/** seconds for the sun direction to precess once around the ecliptic — a real year */
+export const SUN_PERIOD = 365.25 * 86400
 
 export const STAR_RADIUS = 460
 export const CONSTELLATION_RADIUS = 455
@@ -43,8 +46,9 @@ export const ORBIT_MAX_RADIUS = 6.6
 /** max tilt of an orbit normal away from the sun line, radians. 33° keeps
  * ORBIT_MIN_RADIUS·cos(tilt)=3.35 > shadow cylinder (3.0)+penumbra (0.18). */
 export const ORBIT_MAX_TILT = (33 * Math.PI) / 180
-/** orbital period at ORBIT_MIN_RADIUS, simTime seconds (Kepler r^1.5 scaling above it) */
-export const ORBIT_BASE_PERIOD = 95
+/** orbital period at ORBIT_MIN_RADIUS, seconds — a realistic ~90-minute LEO
+ * period (Kepler r^1.5 scaling above it for the outer shells) */
+export const ORBIT_BASE_PERIOD = 5400
 
 export const DEFAULT_SAT_COUNT = 1024
 export const MAX_SAT_COUNT = 4096
