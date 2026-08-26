@@ -113,7 +113,7 @@ body,
   overflow: hidden;
   /* centers the disc on the surrounding caps' visual middle, not the baseline */
   vertical-align: middle;
-  transform: translateY(0.16em);
+  transform: translateY(0.06em);
   background: #b8280a;
   box-shadow:
     0 0 0.42em 0.03em rgba(255, 150, 40, 0.9),

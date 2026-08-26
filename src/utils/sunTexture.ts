@@ -9,8 +9,10 @@ export function sunGranulationDataUrl(size = 128): string {
   const ctx = canvas.getContext('2d')!
 
   // hot, saturated fire palette — not a smooth pastel blend (that reads as
-  // a moon), a punchy white-hot core collapsing fast into deep red-orange
-  const base = ctx.createRadialGradient(size * 0.46, size * 0.42, size * 0.02, size * 0.5, size * 0.5, size * 0.62)
+  // a moon), a punchy white-hot core collapsing fast into deep red-orange.
+  // Dead-centered (no artistic offset) — an off-center hotspot reads as the
+  // whole sun being off-center, not just its lighting.
+  const base = ctx.createRadialGradient(size * 0.5, size * 0.5, size * 0.02, size * 0.5, size * 0.5, size * 0.62)
   base.addColorStop(0, '#fffdf2')
   base.addColorStop(0.14, '#ffe27a')
   base.addColorStop(0.36, '#ffa733')
