@@ -12,6 +12,7 @@ export function SolsukLogo({ className = '' }: { className?: string }) {
       <span aria-hidden="true" className="solsuk-sun-letter">
         <span className="solsuk-sun-letter__surface" style={{ backgroundImage: `url(${tex})` }} />
         <span className="solsuk-sun-letter__limb" />
+        <span className="solsuk-sun-letter__flare" />
       </span>
       <span aria-hidden="true" className="sol-text">
         L

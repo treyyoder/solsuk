@@ -47,11 +47,15 @@ export const SUN_FRAG = /* glsl */ `
     // limb darkening
     float limb = pow(max(vNormal.z, 0.0), 0.55);
 
-    vec3 core = vec3(1.0, 0.86, 0.55);
-    vec3 hot = vec3(1.0, 0.98, 0.9);
-    vec3 cool = vec3(0.95, 0.45, 0.12);
-    vec3 color = mix(cool, mix(core, hot, surface), 0.45 + surface * 0.55);
-    color *= (0.55 + limb * 0.75);
+    // punchier, more saturated fire palette (deep red-orange base, hard
+    // white-hot active regions only where the noise peaks) instead of a
+    // smooth pale blend — a smooth blend is what reads as "moon", not "fire"
+    vec3 core = vec3(1.0, 0.72, 0.28);
+    vec3 hot = vec3(1.0, 0.97, 0.85);
+    vec3 cool = vec3(0.78, 0.22, 0.04);
+    float hotspot = smoothstep(0.55, 0.92, surface);
+    vec3 color = mix(cool, mix(core, hot, hotspot), 0.35 + surface * 0.65);
+    color *= (0.5 + limb * 0.85);
     gl_FragColor = vec4(color * uBoost, 1.0);
   }
 `

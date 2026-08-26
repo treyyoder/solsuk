@@ -106,16 +106,18 @@ body,
 .solsuk-sun-letter {
   display: inline-block;
   position: relative;
-  width: 0.8em;
-  height: 0.8em;
-  margin: 0 0.02em;
+  width: 0.82em;
+  height: 0.82em;
+  margin: 0 0.03em;
   border-radius: 50%;
   overflow: hidden;
-  vertical-align: -0.08em;
-  background: radial-gradient(circle at 35% 32%, #fff6d8, #ffcf6b 35%, #ff9a2e 62%, #b3450e 100%);
+  /* centers the disc on the surrounding caps' visual middle, not the baseline */
+  vertical-align: middle;
+  transform: translateY(0.16em);
+  background: #b8280a;
   box-shadow:
-    0 0 0.4em 0.02em rgba(255, 170, 60, 0.85),
-    0 0 0.9em rgba(255, 140, 40, 0.35);
+    0 0 0.42em 0.03em rgba(255, 150, 40, 0.9),
+    0 0 1em rgba(255, 120, 30, 0.4);
 }
 .solsuk-sun-letter__surface {
   position: absolute;
@@ -123,17 +125,38 @@ body,
   background-size: cover;
   background-position: center;
   animation: solsuk-sun-spin 16s linear infinite;
-  mix-blend-mode: overlay;
-  opacity: 0.9;
 }
 .solsuk-sun-letter__limb {
   position: absolute;
   inset: 0;
   border-radius: 50%;
   pointer-events: none;
-  background:
-    radial-gradient(circle at 38% 34%, rgba(255, 255, 255, 0.6), rgba(255, 255, 255, 0) 45%),
-    radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0) 55%, rgba(110, 25, 0, 0.55) 100%);
+  background: radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0) 58%, rgba(120, 25, 5, 0.6) 100%);
+}
+.solsuk-sun-letter__flare {
+  position: absolute;
+  inset: -55%;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 235, 190, 0.55) 0%, rgba(255, 180, 90, 0) 70%);
+  opacity: 0;
+  animation: solsuk-sun-flare 9s ease-in-out infinite;
+}
+@keyframes solsuk-sun-flare {
+  0%,
+  82%,
+  100% {
+    opacity: 0;
+    transform: scale(0.85) rotate(0deg);
+  }
+  88% {
+    opacity: 0.9;
+    transform: scale(1.15) rotate(35deg);
+  }
+  95% {
+    opacity: 0;
+    transform: scale(1.3) rotate(50deg);
+  }
 }
 @keyframes solsuk-sun-spin {
   from {
