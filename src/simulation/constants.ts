@@ -25,9 +25,6 @@ export const SUN_PERIOD = 60000
 export const STAR_RADIUS = 460
 export const CONSTELLATION_RADIUS = 455
 
-/** sim-seconds-per-real-second baseline the app is tuned around — this is the
- * "1 hour per second" pace at speed level 1. See utils/time.ts. */
-export const DEFAULT_TIME_SCALE = 30
 export const DEFAULT_SPEED_LEVEL = 1
 export const MAX_SPEED_LEVEL = 100
 
