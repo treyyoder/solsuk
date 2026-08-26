@@ -2,7 +2,9 @@
 
 export const EARTH_RADIUS = 3.0
 export const CLOUD_RADIUS = 3.02
-export const ATMOSPHERE_RADIUS = 3.14
+/** outer bound of the limb-glow shell — the glow itself decays to ~0 long
+ * before this radius, so the geometry edge is never visible */
+export const ATMOSPHERE_RADIUS = 3.85
 
 /** Earth's axial tilt, radians */
 export const EARTH_TILT = (23.4 * Math.PI) / 180
