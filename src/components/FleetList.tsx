@@ -126,6 +126,10 @@ export function FleetList() {
           />
           <span className="mono w-11 shrink-0 text-right text-[9px] text-fg">{settings.maxCrosslinks}</span>
         </div>
+        <div className="mt-1.5">
+          <ToggleRow label="ODC network" value={settings.odcNetwork} onChange={() => settings.toggle('odcNetwork')} />
+          <ToggleRow label="Earth links" value={settings.earthLinks} onChange={() => settings.toggle('earthLinks')} />
+        </div>
       </Section>
 
       <Section title="Model assumptions">

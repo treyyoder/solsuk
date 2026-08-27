@@ -60,6 +60,7 @@ function FpsProbe() {
 
 export function SolsukScene() {
   const quality = useSettingsStore((s) => s.quality)
+  const odcNetwork = useSettingsStore((s) => s.odcNetwork)
   const preset = QUALITY_PRESETS[quality]
   const dprOverride = new URLSearchParams(window.location.search).get('dpr')
 
@@ -91,8 +92,8 @@ export function SolsukScene() {
       <SatelliteNet />
       <SatelliteDetail />
       <GroundLinks />
-      <ComputeMesh />
-      <NeighborWeb />
+      {odcNetwork && <ComputeMesh />}
+      {odcNetwork && <NeighborWeb />}
 
       {webglCaps().floatRT && (
         <EffectComposer>

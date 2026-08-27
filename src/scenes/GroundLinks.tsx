@@ -33,6 +33,7 @@ export function GroundLinks() {
   /** cached serving-satellite index per city, into the global fleet order */
   const bestSat = useMemo(() => new Int32Array(MAX_CITIES).fill(-1), [])
   const labels = useSettingsStore((s) => s.labels)
+  const earthLinks = useSettingsStore((s) => s.earthLinks)
 
   const lineGeo = useMemo(() => {
     const geo = new THREE.BufferGeometry()
@@ -57,7 +58,7 @@ export function GroundLinks() {
     if (!markerMesh || !packetMesh) return
 
     // staggered re-pick for a few cities
-    if (active > 0 && candN > 0) {
+    if (earthLinks && active > 0 && candN > 0) {
       const stride = Math.max(1, Math.floor(candN / MAX_SCAN))
       for (let r = 0; r < RETARGET_PER_FRAME; r++) {
         const ci = (cursor.current + r) % active
@@ -108,7 +109,7 @@ export function GroundLinks() {
 
       // validate the cached satellite (fleet may have grown/shrunk under us;
       // the sat may have set below the horizon since its last re-pick)
-      let best = bestSat[ci]
+      let best = earthLinks ? bestSat[ci] : -1
       if (best >= candN) best = bestSat[ci] = -1
       if (best >= 0) {
         const dx = posArr[best * 3] - cityPos[0]

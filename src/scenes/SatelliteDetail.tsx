@@ -59,8 +59,9 @@ export function SatelliteDetail() {
     }
 
     const st = useSimStore.getState().focusedStats
+    const { odcNetwork, earthLinks } = useSettingsStore.getState()
     const cross = crossGeo.attributes.position.array as Float32Array
-    const links = st?.crosslinks ?? []
+    const links = odcNetwork ? (st?.crosslinks ?? []) : []
     const count = Math.min(links.length, MAX_CROSSLINKS)
     for (let k = 0; k < count; k++) {
       const j = satIndexOf(links[k].to) * 3
@@ -77,7 +78,7 @@ export function SatelliteDetail() {
     const cfg = satConfigOf(satId)
     const station = cfg ? GROUND_STATIONS.find((g) => g.id === cfg.groundStationId) : undefined
     const arr = groundGeo.attributes.position.array as Float32Array
-    if (st?.groundVisible && station) {
+    if (earthLinks && st?.groundVisible && station) {
       stationWorldPos(station, simClock.t, gsScratch)
       arr[0] = sx
       arr[1] = sy

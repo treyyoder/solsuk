@@ -26,6 +26,10 @@ interface SettingsState {
   satScale: number
   /** how many of its CLOSEST peers each data center links to (up to) */
   maxCrosslinks: number
+  /** show the inter-ODC link layers (purple neighbor web + green relay hops) */
+  odcNetwork: boolean
+  /** show the links back to Earth (green city downlink beams) */
+  earthLinks: boolean
   orbits: boolean
   constellationLines: boolean
   constellationLabels: boolean
@@ -41,6 +45,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   quality: 'high',
   satScale: DEFAULT_SAT_SCALE,
   maxCrosslinks: 16,
+  odcNetwork: true,
+  earthLinks: true,
   orbits: true,
   constellationLines: true,
   constellationLabels: false,
