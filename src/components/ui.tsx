@@ -1,12 +1,25 @@
 import type { ReactNode } from 'react'
 
-export function Section({ title, children, right }: { title: string; children: ReactNode; right?: ReactNode }) {
+export function Section({
+  title,
+  subtitle,
+  children,
+  right,
+}: {
+  title: string
+  subtitle?: string
+  children: ReactNode
+  right?: ReactNode
+}) {
   return (
     <div className="mb-4">
-      <div className="mb-2 flex items-center justify-between">
+      <div className={subtitle ? 'mb-0.5 flex items-center justify-between' : 'mb-2 flex items-center justify-between'}>
         <div className="hud-label">{title}</div>
         {right}
       </div>
+      {subtitle && (
+        <div className="mb-2 text-[8px] uppercase tracking-[0.16em] text-fg-dim opacity-80">{subtitle}</div>
+      )}
       {children}
     </div>
   )

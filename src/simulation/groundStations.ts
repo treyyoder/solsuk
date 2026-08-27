@@ -116,7 +116,7 @@ export const MAX_CITIES = GROUND_STATIONS.length
 
 /** how many cities (head of the population-sorted list) the net serves per year */
 const CITY_COUNT_KEYFRAMES: [number, number][] = [
-  [2026, 3], [2028, 5], [2030, 8], [2033, 12], [2035, 16], [2040, 28],
+  [2026.999, 0], [2027, 3], [2028, 5], [2030, 8], [2033, 12], [2035, 16], [2040, 28],
   [2045, 38], [2050, 50], [2056, 66], [2064, 84], [2072, 96], [2078, 100], [2084, 100],
 ]
 

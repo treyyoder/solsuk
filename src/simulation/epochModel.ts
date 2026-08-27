@@ -164,7 +164,8 @@ function interp(frames: Keyframes, year: number): number {
 /** facility counts per class — sums hit the spec's totals: 16 (2030), 64 (2033),
  * 256 (2035), 1024 (2040), 4096 (2054), 16384 (2064), saturating ~30k by 2084 */
 const CLASS_COUNTS: Record<FacilityClass, Keyframes> = {
-  pioneer: [[2026, 1], [2028, 6], [2030, 16], [2033, 20], [2035, 16], [2084, 16]],
+  // empty sky until the first platform launches in 2027
+  pioneer: [[2026.999, 0], [2027, 1], [2028, 6], [2030, 16], [2033, 20], [2035, 16], [2084, 16]],
   cluster: [[2031, 0], [2033, 44], [2035, 102], [2040, 47], [2054, 40], [2064, 90], [2084, 150]],
   edge: [[2033.5, 0], [2035, 138], [2040, 540], [2047, 1100], [2054, 2300], [2064, 9978], [2074, 14000], [2084, 18334]],
   standard: [[2035.5, 0], [2040, 300], [2047, 700], [2054, 1200], [2064, 4500], [2074, 6500], [2084, 8000]],
@@ -399,7 +400,7 @@ export interface Milestone {
 }
 
 export const MILESTONES: Milestone[] = [
-  { year: 2026.5, title: 'First experimental orbital compute platform', sub: '~150 kW · PFLOPS-class', focusClass: 'pioneer' },
+  { year: 2027, title: 'First experimental orbital compute platform', sub: '~150 kW · PFLOPS-class', focusClass: 'pioneer' },
   { year: 2030, title: 'First commercial orbital GPU data center', sub: '16 platforms on orbit', focusClass: 'pioneer' },
   { year: 2033, title: 'First 1 MW orbital compute facility', sub: 'Optical inter-satellite links come online', focusClass: 'cluster' },
   { year: 2034, title: 'First orbital EFLOP-class AI cluster', focusClass: 'cluster' },

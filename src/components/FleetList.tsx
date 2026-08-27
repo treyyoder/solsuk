@@ -86,7 +86,7 @@ export function FleetList() {
 
   return (
     <div className="glass pointer-events-auto flex h-full w-64 flex-col overflow-y-auto rounded-xl p-3">
-      <Section title="Constellation">
+      <Section title="Constellation" subtitle="Orbital Data Centers">
         <div className="mb-2 flex items-center justify-between">
           <span className="mono text-lg text-orbit">{fmtCount(epoch.totalCount)}</span>
           <button
