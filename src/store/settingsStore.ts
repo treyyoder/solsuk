@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { DEFAULT_SAT_SCALE } from '../simulation/constants'
+import { setOrbitPattern, type OrbitPattern } from '../simulation/orbits'
 
 export type Quality = 'low' | 'medium' | 'high' | 'ultra'
 
@@ -30,6 +31,8 @@ interface SettingsState {
   odcNetwork: boolean
   /** show the links back to Earth (green city downlink beams) */
   earthLinks: boolean
+  /** constellation shape: sun-riding shells (donut) or a sunward cone */
+  orbitPattern: OrbitPattern
   orbits: boolean
   constellationLines: boolean
   constellationLabels: boolean
@@ -47,6 +50,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   maxCrosslinks: 16,
   odcNetwork: true,
   earthLinks: true,
+  orbitPattern: 'donut',
   orbits: true,
   constellationLines: true,
   constellationLabels: false,
@@ -57,3 +61,6 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   set: (patch) => set(patch),
   toggle: (key) => set((s) => ({ [key]: !s[key] }) as Partial<SettingsState>),
 }))
+
+// keep the pure orbit module's pattern flag in sync with the store
+useSettingsStore.subscribe((s) => setOrbitPattern(s.orbitPattern))

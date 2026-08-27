@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { startSimLoop, useSimStore, yearFromT } from './store/simStore'
+import { useSettingsStore } from './store/settingsStore'
 import { START_YEAR, YEAR_SECONDS } from './simulation/epochModel'
 
 startSimLoop()
@@ -10,6 +11,12 @@ startSimLoop()
 // deep-link into an era: ?year=2040 — otherwise the simulation starts at the
 // REAL current date and time (speed level 1 is genuine 1 s/s real time, so
 // the sim clock ticks in lockstep with the wall clock from here)
+// deep-link the constellation shape: ?pattern=cone|donut
+const patternParam = new URLSearchParams(window.location.search).get('pattern')
+if (patternParam === 'cone' || patternParam === 'donut') {
+  useSettingsStore.getState().set({ orbitPattern: patternParam })
+}
+
 const yearParam = new URLSearchParams(window.location.search).get('year')
 if (yearParam && !Number.isNaN(parseFloat(yearParam))) {
   useSimStore.getState().setYear(parseFloat(yearParam))

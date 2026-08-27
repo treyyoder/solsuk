@@ -130,6 +130,23 @@ export function FleetList() {
           <ToggleRow label="ODC network" value={settings.odcNetwork} onChange={() => settings.toggle('odcNetwork')} />
           <ToggleRow label="Earth links" value={settings.earthLinks} onChange={() => settings.toggle('earthLinks')} />
         </div>
+        <div
+          className="mt-1.5 flex items-center gap-2"
+          title="Constellation shape — DONUT: sun-riding shells all around Earth; CONE: a conical swarm aimed at the sun (its axis stays clear, so the sun is never blocked)"
+        >
+          <span className="mono w-[72px] shrink-0 text-[8px] uppercase tracking-wider text-fg-dim">Pattern</span>
+          <div className="flex gap-1">
+            {(['donut', 'cone'] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => settings.set({ orbitPattern: p })}
+                className={`btn-ghost rounded px-2 py-0.5 text-[8px] uppercase ${settings.orbitPattern === p ? 'active' : ''}`}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
       </Section>
 
       <Section title="Model assumptions">

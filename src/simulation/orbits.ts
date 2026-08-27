@@ -4,10 +4,32 @@ import {
   MOON_INCLINATION,
   MOON_ORBIT_RADIUS,
   MOON_PERIOD,
+  ORBIT_MAX_TILT,
   SUN_DISTANCE,
   SUN_PERIOD,
 } from './constants'
 import type { SatelliteConfig, Vec3 } from './types'
+
+/**
+ * Constellation pattern. 'donut': sun-riding shells all around Earth (the
+ * classic torus look). 'cone': every facility rides a ring around the
+ * Earth→sun axis on the SUNWARD side, the rings sweeping out a conical
+ * shell aimed at the sun. The cone's half-angle never drops below
+ * CONE_MIN_ANGLE, so the axis itself — and with it Earth's line of sight
+ * to the sun — stays permanently clear: nothing ever crosses the solar disc.
+ * Set via setOrbitPattern (the settings store syncs it); kept as a module
+ * flag so this module stays free of store/react imports.
+ */
+export type OrbitPattern = 'donut' | 'cone'
+let orbitPattern: OrbitPattern = 'donut'
+export function setOrbitPattern(p: OrbitPattern): void {
+  orbitPattern = p
+}
+
+/** cone half-angle band, radians — 26° floor keeps the sun disc (~2° from
+ * Earth, incl. margin) far outside anything the swarm ever occupies */
+const CONE_MIN_ANGLE = (26 * Math.PI) / 180
+const CONE_MAX_ANGLE = (40 * Math.PI) / 180
 
 /**
  * Pure circular-orbit math. World frame: y-up; the ecliptic is the x-z plane.
@@ -50,6 +72,10 @@ export function orbitPosition(radius: number, inclination: number, raan: number,
 const nScratch: Vec3 = [0, 0, 0]
 const aScratch: Vec3 = [0, 0, 0]
 const bScratch: Vec3 = [0, 0, 0]
+/** ring center (offset from Earth) and ring radius — donut rings are centered
+ * on Earth (c=0, R=orbit radius); cone rings sit sunward of Earth on the axis */
+const cScratch: Vec3 = [0, 0, 0]
+let ringRadius = 1
 
 /**
  * Sun-riding orbit: the orbit plane's normal is the sun direction tilted by
@@ -58,8 +84,39 @@ const bScratch: Vec3 = [0, 0, 0]
  * this is the "always in sunlight" guarantee. Unique (radius, tilt, azimuth,
  * phase) slots per satellite keep the constellation deconflicted.
  */
-/** Builds the sun-riding orbit's in-plane basis (a, b) into aScratch/bScratch — shared by position and tangent. */
+/** Builds the current pattern's ring basis (a, b), center (cScratch) and
+ * ringRadius — shared by position and tangent. */
 function satBasis(sat: SatelliteConfig, sunDir: Vec3): void {
+  if (orbitPattern === 'cone') {
+    // ring around the Earth→sun axis at cone angle α: center = sunDir·r·cosα,
+    // ring radius = r·sinα. α maps from the slot's tilt so every facility
+    // keeps a unique, deconflicted ring; the whole family sweeps a cone
+    // aimed at the sun, always sunlit, never on the axis itself.
+    const alpha = CONE_MIN_ANGLE + (sat.tilt / ORBIT_MAX_TILT) * (CONE_MAX_ANGLE - CONE_MIN_ANGLE)
+    const axial = sat.radius * Math.cos(alpha)
+    ringRadius = sat.radius * Math.sin(alpha)
+    cScratch[0] = sunDir[0] * axial
+    cScratch[1] = sunDir[1] * axial
+    cScratch[2] = sunDir[2] * axial
+    // ring plane ⊥ sunDir: u = sunDir × Y (unit — sunDir is unit with y=0),
+    // v = sunDir × u; rotate by the slot azimuth for extra decorrelation
+    const ux = -sunDir[2]
+    const uz = sunDir[0]
+    const vy = sunDir[2] * ux - sunDir[0] * uz // = -1, but keep it exact
+    const ca = Math.cos(sat.azimuth)
+    const sa = Math.sin(sat.azimuth)
+    aScratch[0] = ux * ca
+    aScratch[1] = vy * sa
+    aScratch[2] = uz * ca
+    bScratch[0] = -ux * sa
+    bScratch[1] = vy * ca
+    bScratch[2] = -uz * sa
+    return
+  }
+  cScratch[0] = 0
+  cScratch[1] = 0
+  cScratch[2] = 0
+  ringRadius = sat.radius
   // u,v ⊥ sunDir (sunDir lives in the ecliptic plane, so worldY is safe)
   // u = sunDir × Y, v = sunDir × u
   const ux = -sunDir[2]
@@ -112,12 +169,12 @@ export function satPosition(sat: SatelliteConfig, t: number, sunDir: Vec3, out: 
  * orbit-preview line) without going through time-based phase arithmetic,
  * which would otherwise mix a huge t-derived term back in. Call satBasis
  * first (satPosition does this for you; direct callers must do it themselves). */
-export function satPositionAtTheta(sat: SatelliteConfig, theta: number, out: Vec3): Vec3 {
-  const cth = Math.cos(theta) * sat.radius
-  const sth = Math.sin(theta) * sat.radius
-  out[0] = aScratch[0] * cth + bScratch[0] * sth
-  out[1] = aScratch[1] * cth + bScratch[1] * sth
-  out[2] = aScratch[2] * cth + bScratch[2] * sth
+export function satPositionAtTheta(_sat: SatelliteConfig, theta: number, out: Vec3): Vec3 {
+  const cth = Math.cos(theta) * ringRadius
+  const sth = Math.sin(theta) * ringRadius
+  out[0] = cScratch[0] + aScratch[0] * cth + bScratch[0] * sth
+  out[1] = cScratch[1] + aScratch[1] * cth + bScratch[1] * sth
+  out[2] = cScratch[2] + aScratch[2] * cth + bScratch[2] * sth
   return out
 }
 
@@ -143,9 +200,9 @@ export function satPositionAndTangent(sat: SatelliteConfig, t: number, sunDir: V
   const bx = bScratch[0]
   const by = bScratch[1]
   const bz = bScratch[2]
-  outPos[0] = ax * cth * sat.radius + bx * sth * sat.radius
-  outPos[1] = ay * cth * sat.radius + by * sth * sat.radius
-  outPos[2] = az * cth * sat.radius + bz * sth * sat.radius
+  outPos[0] = cScratch[0] + ax * cth * ringRadius + bx * sth * ringRadius
+  outPos[1] = cScratch[1] + ay * cth * ringRadius + by * sth * ringRadius
+  outPos[2] = cScratch[2] + az * cth * ringRadius + bz * sth * ringRadius
   // d/dθ (cosθ·a + sinθ·b) = -sinθ·a + cosθ·b — already unit length (a,b orthonormal)
   outTangent[0] = -sth * ax + cth * bx
   outTangent[1] = -sth * ay + cth * by
