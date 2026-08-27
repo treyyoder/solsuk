@@ -79,7 +79,8 @@ export function Earth() {
           material={surfaceMat}
           onClick={(e) => {
             e.stopPropagation()
-            setFocus({ kind: 'earth' })
+            if (e.delta > 6) return // drag-to-rotate release, not a click
+            setFocus({ kind: 'earth' }, { fly: false })
           }}
           onPointerOver={() => (document.body.style.cursor = 'pointer')}
           onPointerOut={() => (document.body.style.cursor = 'default')}

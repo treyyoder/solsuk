@@ -58,6 +58,9 @@ function FpsProbe() {
   return null
 }
 
+/** last pointer-down screen position — distinguishes clicks from drag releases */
+const pointerDownAt = { x: 0, y: 0 }
+
 export function SolsukScene() {
   const quality = useSettingsStore((s) => s.quality)
   const odcNetwork = useSettingsStore((s) => s.odcNetwork)
@@ -72,7 +75,13 @@ export function SolsukScene() {
       onCreated={({ gl }) => {
         diagLog(`three renderer created · webgl2=${gl.capabilities.isWebGL2} · composer=${webglCaps().floatRT ? 'on' : 'off'}`)
       }}
-      onPointerMissed={() => {
+      onPointerDown={(e) => {
+        pointerDownAt.x = e.clientX
+        pointerDownAt.y = e.clientY
+      }}
+      onPointerMissed={(e) => {
+        // a drag-to-rotate released over empty space is not a deselect click
+        if (Math.hypot(e.clientX - pointerDownAt.x, e.clientY - pointerDownAt.y) > 6) return
         const { focus, escToParent } = useFocusStore.getState()
         if (focus.kind !== 'overview') escToParent()
       }}

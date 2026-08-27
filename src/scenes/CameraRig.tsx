@@ -160,11 +160,15 @@ export function CameraRig() {
   useEffect(() => {
     const c = ref.current
     if (!c) return
+    const fly = useFocusStore.getState().fly
     if (focus.kind === 'satellite' || focus.kind === 'moon') {
-      mode.current = 'approach'
+      // fly:false = keep the camera wherever the user left it and just
+      // start translating with the target (no cinematic approach)
+      mode.current = fly ? 'approach' : 'chase'
       prevTarget.current.set(NaN, NaN, NaN) // (re)baseline on the first frame
     } else {
       mode.current = 'idle'
+      if (!fly) return // stay exactly where the user released the drag
       const pose = staticPoseFor(focus)
       c.smoothTime = 0.55
       void c.setLookAt(...pose.position, ...pose.target, true)
@@ -258,6 +262,11 @@ export function CameraRig() {
     } else if (mode.current === 'chase') {
       // translate camera by the target's motion — user keeps full orbit control around it
       c.smoothTime = 0
+      if (Number.isNaN(prevTarget.current.x)) {
+        // entered chase directly (fly:false) — baseline without moving the camera
+        prevTarget.current.set(tx, ty, tz)
+        return
+      }
       const dx = tx - prevTarget.current.x
       const dy = ty - prevTarget.current.y
       const dz = tz - prevTarget.current.z

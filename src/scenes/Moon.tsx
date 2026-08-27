@@ -41,6 +41,7 @@ function BaseMarker({ baseId, latDeg, lonDeg }: { baseId: string; latDeg: number
       quaternion={quat}
       onClick={(e) => {
         e.stopPropagation()
+        if (e.delta > 6) return // drag-to-rotate release, not a click
         setFocus({ kind: 'moon', baseId })
       }}
       onPointerOver={(e) => {
@@ -94,7 +95,8 @@ export function Moon() {
       <mesh
         onClick={(e) => {
           e.stopPropagation()
-          setFocus({ kind: 'moon' })
+          if (e.delta > 6) return // drag-to-rotate release, not a click
+          setFocus({ kind: 'moon' }, { fly: false })
         }}
         onPointerOver={() => (document.body.style.cursor = 'pointer')}
         onPointerOut={() => (document.body.style.cursor = 'default')}

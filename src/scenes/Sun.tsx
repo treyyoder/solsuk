@@ -208,7 +208,8 @@ export function Sun() {
         ref={group}
         onClick={(e) => {
           e.stopPropagation()
-          setFocus({ kind: 'sun' })
+          if (e.delta > 6) return // drag-to-rotate release, not a click
+          setFocus({ kind: 'sun' }, { fly: false })
         }}
         onPointerOver={() => (document.body.style.cursor = 'pointer')}
         onPointerOut={() => (document.body.style.cursor = 'default')}

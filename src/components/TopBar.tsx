@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { breadcrumb, useFocusStore } from '../store/focusStore'
+import type { FocusTarget } from '../simulation/types'
 import { simClock, useSimStore, yearFromT } from '../store/simStore'
 import { usePerfStore } from '../store/perfStore'
 import { useSettingsStore, type Quality } from '../store/settingsStore'
@@ -55,6 +56,27 @@ export function TopBar() {
               {c.label}
             </button>
           </span>
+        ))}
+      </nav>
+
+      <div className="mx-1 h-5 w-px bg-edge" />
+      {/* quick-nav: fly straight to the three bodies */}
+      <nav className="flex items-center gap-1 text-[11px]">
+        {(
+          [
+            { label: 'SOL', target: { kind: 'sun' }, active: focus.kind === 'sun' },
+            { label: 'TERRA', target: { kind: 'earth' }, active: focus.kind === 'earth' },
+            { label: 'LUNA', target: { kind: 'moon' }, active: focus.kind === 'moon' },
+          ] as { label: string; target: FocusTarget; active: boolean }[]
+        ).map((n) => (
+          <button
+            key={n.label}
+            onClick={() => setFocus(n.target)}
+            className={`btn-ghost rounded px-1.5 py-0.5 tracking-wider ${n.active ? 'active text-orbit' : 'text-fg-dim'}`}
+            title={`Fly to ${n.label}`}
+          >
+            {n.label}
+          </button>
         ))}
       </nav>
 

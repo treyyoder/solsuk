@@ -5,7 +5,10 @@ interface FocusState {
   focus: FocusTarget
   landing: boolean
   hoveredSat: string | null
-  setFocus: (f: FocusTarget) => void
+  /** whether the latest setFocus wants the camera to FLY to the target —
+   * scene clicks on Earth/Moon/Sun pass fly:false so the view stays put */
+  fly: boolean
+  setFocus: (f: FocusTarget, opts?: { fly?: boolean }) => void
   escToParent: () => void
   dismissLanding: () => void
   showLanding: () => void
@@ -30,7 +33,8 @@ function initialFromUrl(): { focus: FocusTarget; landing: boolean } {
 export const useFocusStore = create<FocusState>((set, get) => ({
   ...initialFromUrl(),
   hoveredSat: null,
-  setFocus: (focus) => set({ focus }),
+  fly: true,
+  setFocus: (focus, opts) => set({ focus, fly: opts?.fly !== false }),
   escToParent: () => {
     const { focus } = get()
     if (focus.kind === 'moon' && focus.baseId) set({ focus: { kind: 'moon' } })

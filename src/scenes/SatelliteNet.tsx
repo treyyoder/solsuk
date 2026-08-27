@@ -340,6 +340,7 @@ export function SatelliteNet() {
 
   const handleClick = (e: ThreeEvent<MouseEvent>) => {
     e.stopPropagation()
+    if (e.delta > 6) return // drag-to-rotate release, not a click
     if (e.instanceId === undefined) return
     const cfg = getFleet()[e.instanceId]
     if (cfg) setFocus({ kind: 'satellite', id: cfg.id })
