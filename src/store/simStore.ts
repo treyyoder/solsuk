@@ -186,13 +186,16 @@ export const useSimStore = create<SimState>((set, get) => ({
 
 // ---------------------------------------------------------------- crosslinks (focused facility only)
 
+/** optical crosslinks only reach NEARBY peers — no links across the constellation */
+const CROSSLINK_MAX_DIST = 1.8
+
 export function crosslinksFor(id: string): Crosslink[] {
   const i = satIndexOf(id) * 3
   const p = satData.positions
   let best1 = -1
   let best2 = -1
-  let d1 = Infinity
-  let d2 = Infinity
+  let d1 = CROSSLINK_MAX_DIST
+  let d2 = CROSSLINK_MAX_DIST
   for (let j = 0; j < fleet.length; j++) {
     if (j * 3 === i) continue
     const d = Math.hypot(p[i] - p[j * 3], p[i + 1] - p[j * 3 + 1], p[i + 2] - p[j * 3 + 2])

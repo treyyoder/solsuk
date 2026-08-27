@@ -79,6 +79,9 @@ function SatellitePanel({ id }: { id: string }) {
         {st?.crosslinks.map((l) => (
           <StatRow key={l.to} label={`⟷ ${l.to} optical`} value={fmtGbps(l.gbps)} accent="ion" />
         ))}
+        {st && st.crosslinks.length === 0 && (
+          <StatRow label="Optical crosslink" value="NO PEER IN RANGE" accent="warn" />
+        )}
         <StatRow label={station.name} value={st?.groundVisible ? 'VISIBLE' : 'OCCLUDED'} accent={st?.groundVisible ? 'orbit' : undefined} />
         {st?.groundVisible && (
           <>

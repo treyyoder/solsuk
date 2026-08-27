@@ -26,6 +26,14 @@ const MAX_RELAY = 200
 const SAMPLES = 24
 const SPAWNS_PER_FRAME = 3
 const FADE = 0.7
+/**
+ * Hard proximity caps — laser links only form between facilities that are
+ * actually NEAR each other (a ~15-20° arc at shell radius), never across
+ * the constellation. A sparse early fleet whose neighbors sit far apart
+ * simply has few links yet — the fabric emerges as the shells fill in.
+ */
+const COOP_MAX_DIST = 1.4
+const RELAY_MAX_DIST = 1.8
 
 interface Link {
   a: number
@@ -136,19 +144,17 @@ export function ComputeMesh() {
     const coopTarget = n >= 2 ? Math.min(MAX_COOP, Math.max(1, Math.floor(n * 0.04))) : 0
     const outerN = n - innerN
     const relayTarget = outerN >= 1 && innerN >= 1 ? Math.min(MAX_RELAY, Math.max(1, Math.floor(outerN * 0.08))) : 0
-    // sparse early fleets sit far apart — let the early links reach further
-    const coopMaxDist = Math.min(3, Math.max(0.55, 9 / Math.sqrt(n || 1)))
 
     for (let s = 0; s < SPAWNS_PER_FRAME && coop.current.length < coopTarget; s++) {
       const a = Math.floor(Math.random() * n)
       if (!alive(a)) continue
-      const b = nearestSample(a, 0, n, coopMaxDist)
+      const b = nearestSample(a, 0, n, COOP_MAX_DIST)
       if (b >= 0) coop.current.push({ a, b, age: 0, life: 3 + Math.random() * 7 })
     }
     for (let s = 0; s < SPAWNS_PER_FRAME && relay.current.length < relayTarget; s++) {
       const a = innerN + Math.floor(Math.random() * outerN)
       if (!alive(a)) continue
-      const b = nearestSample(a, 0, innerN, 4)
+      const b = nearestSample(a, 0, innerN, RELAY_MAX_DIST)
       if (b >= 0) relay.current.push({ a, b, age: 0, life: 3 + Math.random() * 7 })
     }
 
