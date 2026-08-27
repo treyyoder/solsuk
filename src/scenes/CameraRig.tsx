@@ -63,7 +63,17 @@ function computeDefaultOverviewPose(): { position: [number, number, number]; tar
     target: [0, 0, 0],
   }
 }
-const DEFAULT_OVERVIEW_POSE = computeDefaultOverviewPose()
+let DEFAULT_OVERVIEW_POSE = computeDefaultOverviewPose()
+// ?view=side — overview from PERPENDICULAR to the sun line, for inspecting
+// the constellation's profile (a double cone only shows its X from the side)
+if (new URLSearchParams(window.location.search).get('view') === 'side') {
+  const sd: Vec3 = [0, 0, 0]
+  sunDirection(0, sd)
+  DEFAULT_OVERVIEW_POSE = {
+    position: [sd[2] * OVERVIEW_DIST, OVERVIEW_DIST * 0.1, -sd[0] * OVERVIEW_DIST],
+    target: [0, 0, 0],
+  }
+}
 
 /** live position of the focused satellite — falls back to direct orbit math before the first frame */
 function liveSatPos(id: string, out: Vec3): Vec3 {

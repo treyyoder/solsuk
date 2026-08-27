@@ -50,5 +50,6 @@ export const ORBIT_MAX_TILT = (33 * Math.PI) / 180
  * period (Kepler r^1.5 scaling above it for the outer shells) */
 export const ORBIT_BASE_PERIOD = 5400
 
-/** visual scale multiplier applied to every facility's per-class dimensions */
-export const DEFAULT_SAT_SCALE = 0.1
+/** visual scale multiplier applied to every facility's per-class dimensions —
+ * starts at the SIZE slider's minimum; scale up from the Constellation menu */
+export const DEFAULT_SAT_SCALE = 0.02

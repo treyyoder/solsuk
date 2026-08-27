@@ -132,7 +132,7 @@ export function FleetList() {
         </div>
         <div
           className="mt-1.5 flex items-center gap-2"
-          title="Constellation shape — DONUT: sun-riding shells all around Earth; CONE: a conical swarm aimed at the sun (its axis stays clear, so the sun is never blocked)"
+          title="Constellation shape, both real Earth-centered orbits — DONUT: near-terminator shells wrapping Earth; CONE: planes tilted hard off the terminator so the swarm's density hugs a double cone centered on Earth and aimed along the sun line (the axis stays clear — the sun is never blocked, and no ODC sits directly sunward of another)"
         >
           <span className="mono w-[72px] shrink-0 text-[8px] uppercase tracking-wider text-fg-dim">Pattern</span>
           <div className="flex gap-1">
