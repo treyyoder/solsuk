@@ -1,5 +1,6 @@
 import {
   EARTH_DAY,
+  EARTH_RADIUS,
   EARTH_TILT,
   MOON_INCLINATION,
   MOON_ORBIT_RADIUS,
@@ -45,6 +46,29 @@ export function setOrbitPattern(p: OrbitPattern): void {
   orbitPattern = p
 }
 
+/** real kilometers per world unit — Earth radius 3 units = 6,371 km */
+export const KM_PER_UNIT = 6371 / EARTH_RADIUS
+/** Earth shadow cylinder + penumbra margin, world units */
+const SHADOW_CLEARANCE = 3.18
+
+/**
+ * LEO floor: the minimum orbit ALTITUDE, user-adjustable (default 1,000 km).
+ * The whole donut shell band shifts so its innermost orbit sits at this
+ * altitude — raising it pushes every satellite outward. Angular rates
+ * re-derive from the shifted radius (Kepler ω ∝ r^-1.5), and at low floors
+ * the always-sunlit guarantee bites: the orbit-plane tilt is clamped so
+ * r·cos(tilt) still clears Earth's shadow cylinder.
+ */
+let leoShift = EARTH_RADIUS + 1000 / KM_PER_UNIT - ORBIT_MIN_RADIUS
+export function setLeoAltitudeKm(km: number): void {
+  leoShift = EARTH_RADIUS + km / KM_PER_UNIT - ORBIT_MIN_RADIUS
+}
+
+/** donut-pattern effective orbit radius for a slot */
+function donutRadius(sat: SatelliteConfig): number {
+  return sat.radius + leoShift
+}
+
 /** collar geometry, world units (Earth radius = 3). The collar spans exactly
  * Earth's middle half along the sun axis: neck rim plane at 25% of Earth's
  * depth from the anti-sun side (−0.5·R⊕) and mouth plane at 75% (+0.5·R⊕) —
@@ -66,7 +90,9 @@ function coneU(sat: SatelliteConfig): number {
 /** pattern-effective angular rate — scaled ∝ r^-1.5 of the station's actual
  * distance from Earth, so outer rings turn slower */
 function effAngVel(sat: SatelliteConfig): number {
-  if (orbitPattern !== 'cone') return sat.angVel
+  if (orbitPattern !== 'cone') {
+    return sat.angVel * Math.pow(sat.radius / donutRadius(sat), 1.5)
+  }
   const u = coneU(sat)
   const axial = CONE_NECK_AXIAL + u * (CONE_MOUTH_AXIAL - CONE_NECK_AXIAL)
   const lateral = CONE_NECK_LATERAL + u * (CONE_MOUTH_LATERAL - CONE_NECK_LATERAL)
@@ -157,8 +183,10 @@ function satBasis(sat: SatelliteConfig, sunDir: Vec3): void {
   cScratch[0] = 0
   cScratch[1] = 0
   cScratch[2] = 0
-  ringRadius = sat.radius
-  const tilt = sat.tilt
+  const r = donutRadius(sat)
+  ringRadius = r
+  // always-sunlit at any LEO floor: r·cos(tilt) must clear the shadow cylinder
+  const tilt = Math.min(sat.tilt, Math.acos(Math.min(1, SHADOW_CLEARANCE / r)))
   // u,v ⊥ sunDir (sunDir lives in the ecliptic plane, so worldY is safe)
   // u = sunDir × Y, v = sunDir × u
   const ux = -sunDir[2]

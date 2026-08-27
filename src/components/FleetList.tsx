@@ -147,6 +147,22 @@ export function FleetList() {
             ))}
           </div>
         </div>
+        <div
+          className="mt-1.5 flex items-center gap-2"
+          title="Minimum orbit altitude — raising it pushes the whole constellation outward"
+        >
+          <span className="mono w-[72px] shrink-0 text-[8px] uppercase tracking-wider text-fg-dim">LEO alt</span>
+          <input
+            type="range"
+            min={1000}
+            max={10000}
+            step={100}
+            value={settings.leoAltitudeKm}
+            onChange={(e) => settings.set({ leoAltitudeKm: parseInt(e.target.value, 10) })}
+            className="min-w-0 flex-1"
+          />
+          <span className="mono w-14 shrink-0 text-right text-[9px] text-fg">{settings.leoAltitudeKm.toLocaleString()} km</span>
+        </div>
       </Section>
 
       <Section title="Model assumptions">
