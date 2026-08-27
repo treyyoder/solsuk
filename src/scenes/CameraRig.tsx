@@ -28,20 +28,32 @@ const OVERVIEW_DIST = 17
 const OVERVIEW_YAW = (14 * Math.PI) / 180
 const OVERVIEW_PITCH = (14 * Math.PI) / 180
 
+// ?view=side — overview from PERPENDICULAR to the sun line, for inspecting
+// the constellation's profile (a cone only shows its silhouette from the side)
+const sideView = new URLSearchParams(window.location.search).get('view') === 'side'
+
 /**
- * Initial "overview" framing: camera sits on Earth's dark side (opposite the
- * sun at sim start, t=0), looking at Earth from a direction rotated
- * OVERVIEW_YAW/PITCH off the exact sun line. Since the camera's forward
- * vector is what rotated, the sun itself doesn't move — it lands offset
- * from screen-center by exactly that angle. Yawing the gaze toward the
- * sun-line's "right" axis puts the sun to that gaze's LEFT (you turned
- * right, so what was ahead is now on your left); pitching the gaze DOWN
- * puts the sun, at the same height, ABOVE the new gaze — together, upper-left.
- * Derived from the actual sun direction at t=0, not a disconnected literal.
+ * "Overview" framing, computed from the sun direction AT THE GIVEN SIM TIME
+ * (the sim starts at the real current date and the sun precesses through the
+ * year, so a pose baked at t=0 aims at yesterday's sun): camera sits on
+ * Earth's dark side — BEHIND Earth relative to the sun — looking at Earth
+ * from a direction rotated OVERVIEW_YAW/PITCH off the exact sun line. Since
+ * the camera's forward vector is what rotated, the sun itself doesn't move —
+ * it lands offset from screen-center by exactly that angle. Yawing the gaze
+ * toward the sun-line's "right" axis puts the sun to that gaze's LEFT (you
+ * turned right, so what was ahead is now on your left); pitching the gaze
+ * DOWN puts the sun, at the same height, ABOVE the new gaze — together,
+ * over Earth's upper-left.
  */
-function computeDefaultOverviewPose(): { position: [number, number, number]; target: [number, number, number] } {
+function overviewPose(t: number): { position: [number, number, number]; target: [number, number, number] } {
   const sunDir0: Vec3 = [0, 0, 0]
-  sunDirection(0, sunDir0) // f0: direction toward the sun; has y=0 (ecliptic)
+  sunDirection(t, sunDir0) // f0: direction toward the sun; has y=0 (ecliptic)
+  if (sideView) {
+    return {
+      position: [sunDir0[2] * OVERVIEW_DIST, OVERVIEW_DIST * 0.1, -sunDir0[0] * OVERVIEW_DIST],
+      target: [0, 0, 0],
+    }
+  }
   // right0 = cross(worldUp, f0) — unit length, also y=0, so cross(f0,right0)=worldUp exactly
   const right0: Vec3 = [sunDir0[2], 0, -sunDir0[0]]
 
@@ -60,17 +72,6 @@ function computeDefaultOverviewPose(): { position: [number, number, number]; tar
 
   return {
     position: [-forward[0] * OVERVIEW_DIST, -forward[1] * OVERVIEW_DIST, -forward[2] * OVERVIEW_DIST],
-    target: [0, 0, 0],
-  }
-}
-let DEFAULT_OVERVIEW_POSE = computeDefaultOverviewPose()
-// ?view=side — overview from PERPENDICULAR to the sun line, for inspecting
-// the constellation's profile (a double cone only shows its X from the side)
-if (new URLSearchParams(window.location.search).get('view') === 'side') {
-  const sd: Vec3 = [0, 0, 0]
-  sunDirection(0, sd)
-  DEFAULT_OVERVIEW_POSE = {
-    position: [sd[2] * OVERVIEW_DIST, OVERVIEW_DIST * 0.1, -sd[0] * OVERVIEW_DIST],
     target: [0, 0, 0],
   }
 }
@@ -127,7 +128,7 @@ function staticPoseFor(focus: FocusTarget): { position: [number, number, number]
       }
     }
     default:
-      return DEFAULT_OVERVIEW_POSE
+      return overviewPose(simClock.t)
   }
 }
 
@@ -136,7 +137,8 @@ const noDrift = new URLSearchParams(window.location.search).has('nodrift')
 export function CameraRig() {
   const ref = useRef<CameraControlsImpl>(null)
   const focus = useFocusStore((s) => s.focus)
-  const landing = useFocusStore((s) => s.landing) && !noDrift
+  const rawLanding = useFocusStore((s) => s.landing)
+  const landing = rawLanding && !noDrift
   const autoRotate = useSettingsStore((s) => s.autoRotate) && !noDrift
 
   /** 'approach' = cinematic fly-in toward a moving object; 'chase' = translate with it */
@@ -156,6 +158,18 @@ export function CameraRig() {
       cameraBus.controls = null
     }
   }, [])
+
+  // ENTER ORBIT: the landing drift has been rotating the view — fly to the
+  // canonical vantage: behind Earth (dark side), sun over Earth's upper-left,
+  // computed for the sun's CURRENT position
+  useEffect(() => {
+    const c = ref.current
+    if (!c || rawLanding) return
+    if (useFocusStore.getState().focus.kind !== 'overview') return
+    const pose = overviewPose(simClock.t)
+    c.smoothTime = 0.8
+    void c.setLookAt(...pose.position, ...pose.target, true)
+  }, [rawLanding])
 
   useEffect(() => {
     const c = ref.current
