@@ -22,18 +22,19 @@ import type { SatelliteConfig, Vec3 } from './types'
  * the classic torus, always sunlit.
  *
  * 'cone': a single funnel opening toward the sun — the dog-cone
- * (Elizabethan collar) shape, Earth at the narrow end. Every facility
- * rides a ring around the Earth→sun axis at cone angle α (26–40°) on the
- * SUNWARD side only; ring lateral radius grows with sunward distance, so
- * the family sweeps a flaring conical wall from r=4.5 out to r=9.5.
- * These rings are NOT free Kepler orbits — a one-sided formation cannot
- * be — they are displaced non-Keplerian orbits held by continuous
- * low-thrust station-keeping (solar-pressure-assisted, a studied statite
- * concept), a deliberately powered formation. Payoffs: the whole swarm
- * is permanently sunlit (never behind Earth), nothing comes within
- * CONE_MIN_ANGLE of the axis so Earth's view of the sun stays clear,
- * and no facility ever sits directly sunward of another — shadows off
- * the cone wall exit the formation instead of landing on a neighbor.
+ * (Elizabethan collar) shape, worn around Earth the way a collar sits on
+ * a neck: the narrow rim ENCIRCLES Earth, its plane at 25% of Earth's
+ * depth from the anti-sun side (axial −0.5·R⊕), and the wall flares
+ * sunward from there to a wide mouth. Every facility rides a ring around
+ * the Earth→sun axis; ring lateral radius always clears Earth (≥4.0), so
+ * even the behind-center rim stays outside the shadow cylinder — the
+ * whole swarm is permanently sunlit. These rings are NOT free Kepler
+ * orbits — a one-sided formation cannot be — they are displaced
+ * non-Keplerian orbits held by continuous low-thrust station-keeping
+ * (solar-pressure-assisted, a studied statite concept). The axial
+ * corridor stays empty (≥25° clearance seen from Earth), so the sun is
+ * never blocked, and no facility sits directly sunward of another —
+ * shadows off the cone wall exit the formation, not land on a neighbor.
  *
  * Set via setOrbitPattern (the settings store syncs it); kept as a module
  * flag so this module stays free of store/react imports.
@@ -44,26 +45,29 @@ export function setOrbitPattern(p: OrbitPattern): void {
   orbitPattern = p
 }
 
-/** cone-wall half-angle band, radians — the 26° floor keeps the sun disc
- * (~2° from Earth, incl. margin) far outside anything the swarm occupies */
-const CONE_MIN_ANGLE = (26 * Math.PI) / 180
-const CONE_MAX_ANGLE = (40 * Math.PI) / 180
-/** the funnel runs from just above the donut shells out to a wide mouth */
-const CONE_RADIUS_MIN = 4.5
-const CONE_RADIUS_MAX = 9.5
+/** collar geometry, world units (Earth radius = 3). The neck rim's plane sits
+ * at 25% of Earth's depth from the anti-sun side: −R⊕ + 0.25·2R⊕ = −0.5·R⊕. */
+const CONE_NECK_AXIAL = -1.5
+const CONE_MOUTH_AXIAL = 8.5
+/** rim clears Earth (3.0), penumbra (0.18) and the atmosphere glow shell */
+const CONE_NECK_LATERAL = 4.0
+const CONE_MOUTH_LATERAL = 9.0
+const CONE_WALL_THICKNESS = 0.9
 
-/** pattern-effective distance from Earth: cone stretches the slot's shell
- * band along the funnel so the wall flares from neck to mouth */
-function effRadius(sat: SatelliteConfig): number {
-  if (orbitPattern !== 'cone') return sat.radius
-  const u = (sat.radius - ORBIT_MIN_RADIUS) / (ORBIT_MAX_RADIUS - ORBIT_MIN_RADIUS)
-  return CONE_RADIUS_MIN + u * (CONE_RADIUS_MAX - CONE_RADIUS_MIN)
+/** the slot's shell position, normalized 0..1 — reused as the facility's
+ * station along the funnel wall (0 = neck, 1 = mouth) */
+function coneU(sat: SatelliteConfig): number {
+  return (sat.radius - ORBIT_MIN_RADIUS) / (ORBIT_MAX_RADIUS - ORBIT_MIN_RADIUS)
 }
 
-/** pattern-effective angular rate — scaled ∝ r^-1.5 so outer rings turn slower */
+/** pattern-effective angular rate — scaled ∝ r^-1.5 of the station's actual
+ * distance from Earth, so outer rings turn slower */
 function effAngVel(sat: SatelliteConfig): number {
   if (orbitPattern !== 'cone') return sat.angVel
-  return sat.angVel * Math.pow(sat.radius / effRadius(sat), 1.5)
+  const u = coneU(sat)
+  const axial = CONE_NECK_AXIAL + u * (CONE_MOUTH_AXIAL - CONE_NECK_AXIAL)
+  const lateral = CONE_NECK_LATERAL + u * (CONE_MOUTH_LATERAL - CONE_NECK_LATERAL)
+  return sat.angVel * Math.pow(sat.radius / Math.hypot(axial, lateral), 1.5)
 }
 
 /**
@@ -123,14 +127,13 @@ let ringRadius = 1
  * shared by position and tangent. */
 function satBasis(sat: SatelliteConfig, sunDir: Vec3): void {
   if (orbitPattern === 'cone') {
-    // dog-cone wall: a ring circling the Earth→sun axis at cone angle α on
-    // the sunward side — center = sunDir·r·cosα, lateral radius = r·sinα.
-    // α and r map from the slot so every facility keeps a unique ring on
-    // the flaring funnel wall (thrust-maintained displaced orbits).
-    const alpha = CONE_MIN_ANGLE + (sat.tilt / ORBIT_MAX_TILT) * (CONE_MAX_ANGLE - CONE_MIN_ANGLE)
-    const r = effRadius(sat)
-    const axial = r * Math.cos(alpha)
-    ringRadius = r * Math.sin(alpha)
+    // collar wall: a ring circling the Earth→sun axis, its station along the
+    // funnel set by the slot's shell position (neck → mouth) and its depth
+    // within the wall by the slot's tilt (thrust-maintained displaced orbits)
+    const u = coneU(sat)
+    const w = sat.tilt / ORBIT_MAX_TILT
+    const axial = CONE_NECK_AXIAL + u * (CONE_MOUTH_AXIAL - CONE_NECK_AXIAL)
+    ringRadius = CONE_NECK_LATERAL + u * (CONE_MOUTH_LATERAL - CONE_NECK_LATERAL) + w * CONE_WALL_THICKNESS
     cScratch[0] = sunDir[0] * axial
     cScratch[1] = sunDir[1] * axial
     cScratch[2] = sunDir[2] * axial
