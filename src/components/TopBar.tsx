@@ -8,6 +8,9 @@ import { fmtSimRate } from '../utils/time'
 import { MAX_SPEED_LEVEL } from '../simulation/constants'
 import { SolsukLogo } from './SolsukLogo'
 
+const ordinal = (d: number) =>
+  d % 10 === 1 && d % 100 !== 11 ? 'st' : d % 10 === 2 && d % 100 !== 12 ? 'nd' : d % 10 === 3 && d % 100 !== 13 ? 'rd' : 'th'
+
 function SimClockReadout() {
   const [, force] = useState(0)
   useEffect(() => {
@@ -15,13 +18,22 @@ function SimClockReadout() {
     return () => window.clearInterval(id)
   }, [])
   const year = yearFromT(simClock.t)
-  const dayOfYear = Math.floor((year % 1) * 365.25)
+  const yearInt = Math.floor(year)
+  const dayIndex = Math.floor((year - yearInt) * 365.25)
+  // calendar arithmetic handles month lengths — Jan 1 + N days
+  const date = new Date(yearInt, 0, 1 + dayIndex)
+  const month = date.toLocaleString('en-US', { month: 'long' })
+  const day = date.getDate()
   const hh = Math.floor((simClock.t % 86400) / 3600)
   const mm = Math.floor((simClock.t % 3600) / 60)
   const pad = (n: number) => String(n).padStart(2, '0')
   return (
     <span className="mono text-[11px] text-fg-dim">
-      <span className="text-orbit">{Math.floor(year)}</span> · day {dayOfYear} · {pad(hh)}:{pad(mm)}
+      <span className="text-orbit">
+        {month} {day}
+        {ordinal(day)} {yearInt}
+      </span>{' '}
+      · {pad(hh)}:{pad(mm)}
     </span>
   )
 }
