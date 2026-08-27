@@ -20,6 +20,7 @@ const sunScratch: Vec3 = [0, 0, 0]
 const sunDirScratch: Vec3 = [0, 0, 0]
 const posScratch: Vec3 = [0, 0, 0]
 const vCam = new THREE.Vector3()
+const vTgt = new THREE.Vector3()
 
 const OVERVIEW_DIST = 17
 /** angular offset of the sun from screen-center in the initial framing — kept
@@ -145,6 +146,10 @@ export function CameraRig() {
   const mode = useRef<'idle' | 'approach' | 'chase'>('idle')
   const prevTarget = useRef(new THREE.Vector3())
   const diagAccum = useRef(0)
+  /** sun's ecliptic angle last frame — the sun-frame co-rotation baseline */
+  const sunAngle = useRef<number | null>(null)
+  /** while a scripted camera flight animates, the co-rotation stands down */
+  const flightUntil = useRef(0)
 
   useEffect(() => {
     cameraBus.controls = ref.current
@@ -168,6 +173,7 @@ export function CameraRig() {
     if (useFocusStore.getState().focus.kind !== 'overview') return
     const pose = overviewPose(simClock.t)
     c.smoothTime = 0.8
+    flightUntil.current = performance.now() + 1200
     void c.setLookAt(...pose.position, ...pose.target, true)
   }, [rawLanding])
 
@@ -185,6 +191,7 @@ export function CameraRig() {
       if (!fly) return // stay exactly where the user released the drag
       const pose = staticPoseFor(focus)
       c.smoothTime = 0.55
+      flightUntil.current = performance.now() + 1200
       void c.setLookAt(...pose.position, ...pose.target, true)
     }
   }, [focus])
@@ -193,6 +200,38 @@ export function CameraRig() {
     const c = ref.current
     if (!c) return
     if (landing || autoRotate) c.azimuthAngle += delta * (landing ? 0.045 : 0.1)
+
+    // Keep the user's orientation IN THE SUN FRAME: timeline scrubs and fast
+    // playback swing the sun around Earth (it precesses through the year), so
+    // a view held "behind Earth toward the sun" would otherwise end up aimed
+    // at empty space. Rotate the camera and its orbit target about Earth's
+    // axis by exactly the sun's angular change each frame — the framing stays
+    // true while Earth spins beneath it. Stands down during scripted flights
+    // and is a no-op at everyday speeds (threshold ≫ real-time sun rate).
+    sunDirection(simClock.t, sunDirScratch)
+    const sunA = Math.atan2(sunDirScratch[2], sunDirScratch[0])
+    const prevSunA = sunAngle.current
+    sunAngle.current = sunA
+    if (prevSunA !== null && mode.current === 'idle' && performance.now() >= flightUntil.current) {
+      let dA = sunA - prevSunA
+      if (dA > Math.PI) dA -= 2 * Math.PI
+      else if (dA < -Math.PI) dA += 2 * Math.PI
+      if (Math.abs(dA) > 1e-6) {
+        const cs = Math.cos(dA)
+        const sn = Math.sin(dA)
+        c.getPosition(vCam)
+        c.getTarget(vTgt)
+        void c.setLookAt(
+          vCam.x * cs - vCam.z * sn,
+          vCam.y,
+          vCam.x * sn + vCam.z * cs,
+          vTgt.x * cs - vTgt.z * sn,
+          vTgt.y,
+          vTgt.x * sn + vTgt.z * cs,
+          false,
+        )
+      }
+    }
 
     const f = useFocusStore.getState().focus
     if (f.kind !== 'satellite' && f.kind !== 'moon') return
