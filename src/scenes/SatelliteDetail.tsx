@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
-import { satConfigOf, satData, satIndexOf, setStatsFocus, simClock, useSimStore } from '../store/simStore'
+import { MAX_CROSSLINKS, satConfigOf, satData, satIndexOf, setStatsFocus, simClock, useSimStore } from '../store/simStore'
 import { CLASS_SPAN } from './SatelliteNet'
 import { useFocusStore } from '../store/focusStore'
 import { GROUND_STATIONS, stationWorldPos } from '../simulation/groundStations'
@@ -27,11 +27,18 @@ export function SatelliteDetail() {
   }, [satId])
 
   const navLight = useRef<THREE.Mesh>(null)
-  const linkGeos = useMemo(
-    () => [new THREE.BufferGeometry(), new THREE.BufferGeometry(), new THREE.BufferGeometry()],
-    [],
-  )
-  const linkPos = useMemo(() => [new Float32Array(6), new Float32Array(6), new Float32Array(6)], [])
+  // one segment per crosslink peer (up to MAX_CROSSLINKS) + one ground beam
+  const crossGeo = useMemo(() => {
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(MAX_CROSSLINKS * 6), 3))
+    geo.setDrawRange(0, 0)
+    return geo
+  }, [])
+  const groundGeo = useMemo(() => {
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(6), 3))
+    return geo
+  }, [])
 
   useFrame(({ clock }) => {
     if (!satId) return
@@ -52,26 +59,24 @@ export function SatelliteDetail() {
     }
 
     const st = useSimStore.getState().focusedStats
-    for (let k = 0; k < 2; k++) {
-      const link = st?.crosslinks[k]
-      const arr = linkPos[k]
-      if (link) {
-        const j = satIndexOf(link.to) * 3
-        arr[0] = sx
-        arr[1] = sy
-        arr[2] = sz
-        arr[3] = posArr[j]
-        arr[4] = posArr[j + 1]
-        arr[5] = posArr[j + 2]
-      } else {
-        arr.fill(0)
-      }
-      linkGeos[k].setAttribute('position', new THREE.BufferAttribute(arr, 3))
-      linkGeos[k].attributes.position.needsUpdate = true
+    const cross = crossGeo.attributes.position.array as Float32Array
+    const links = st?.crosslinks ?? []
+    const count = Math.min(links.length, MAX_CROSSLINKS)
+    for (let k = 0; k < count; k++) {
+      const j = satIndexOf(links[k].to) * 3
+      cross[k * 6] = sx
+      cross[k * 6 + 1] = sy
+      cross[k * 6 + 2] = sz
+      cross[k * 6 + 3] = posArr[j]
+      cross[k * 6 + 4] = posArr[j + 1]
+      cross[k * 6 + 5] = posArr[j + 2]
     }
+    crossGeo.setDrawRange(0, count * 2)
+    crossGeo.attributes.position.needsUpdate = true
+
     const cfg = satConfigOf(satId)
     const station = cfg ? GROUND_STATIONS.find((g) => g.id === cfg.groundStationId) : undefined
-    const arr = linkPos[2]
+    const arr = groundGeo.attributes.position.array as Float32Array
     if (st?.groundVisible && station) {
       stationWorldPos(station, simClock.t, gsScratch)
       arr[0] = sx
@@ -83,8 +88,7 @@ export function SatelliteDetail() {
     } else {
       arr.fill(0)
     }
-    linkGeos[2].setAttribute('position', new THREE.BufferAttribute(arr, 3))
-    linkGeos[2].attributes.position.needsUpdate = true
+    groundGeo.attributes.position.needsUpdate = true
   })
 
   if (!satId || !stats) return null
@@ -95,16 +99,13 @@ export function SatelliteDetail() {
         <sphereGeometry args={[0.12, 8, 8]} />
         <meshBasicMaterial color="#ff5c6a" transparent toneMapped={false} />
       </mesh>
-      {/* optical crosslinks — purple, the cooperation color of the fabric */}
-      {[0, 1].map((k) => (
-        <line key={k}>
-          <primitive object={linkGeos[k]} attach="geometry" />
-          <lineBasicMaterial color="#b44cff" transparent opacity={0.7} toneMapped={false} depthWrite={false} />
-        </line>
-      ))}
+      {/* optical crosslinks to the K closest peers — purple, the cooperation color */}
+      <lineSegments geometry={crossGeo} frustumCulled={false}>
+        <lineBasicMaterial color="#b44cff" transparent opacity={0.7} toneMapped={false} depthWrite={false} />
+      </lineSegments>
       {/* downlink beam to its home city — green, data heading home */}
       <line>
-        <primitive object={linkGeos[2]} attach="geometry" />
+        <primitive object={groundGeo} attach="geometry" />
         <lineBasicMaterial color="#39ff8e" transparent opacity={0.55} toneMapped={false} depthWrite={false} />
       </line>
     </group>

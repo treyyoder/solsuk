@@ -1,5 +1,5 @@
 import { memo, useState } from 'react'
-import { getFleetByClass, useSimStore } from '../store/simStore'
+import { getFleetByClass, MAX_CROSSLINKS, useSimStore } from '../store/simStore'
 import { useFocusStore } from '../store/focusStore'
 import { useSettingsStore } from '../store/settingsStore'
 import { CLASS_META, FACILITY_CLASSES, fmtCount, fmtPowerMW, type FacilityClass } from '../simulation/epochModel'
@@ -112,6 +112,19 @@ export function FleetList() {
             className="min-w-0 flex-1"
           />
           <span className="mono w-11 shrink-0 text-right text-[9px] text-fg">{settings.satScale.toFixed(2)}×</span>
+        </div>
+        <div className="mt-1.5 flex items-center gap-2" title="How many of its closest peers each data center links to">
+          <span className="mono w-[72px] shrink-0 text-[8px] uppercase tracking-wider text-fg-dim">Links / DC</span>
+          <input
+            type="range"
+            min={1}
+            max={MAX_CROSSLINKS}
+            step={1}
+            value={settings.maxCrosslinks}
+            onChange={(e) => settings.set({ maxCrosslinks: parseInt(e.target.value, 10) })}
+            className="min-w-0 flex-1"
+          />
+          <span className="mono w-11 shrink-0 text-right text-[9px] text-fg">{settings.maxCrosslinks}</span>
         </div>
       </Section>
 

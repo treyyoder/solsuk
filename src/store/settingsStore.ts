@@ -24,6 +24,8 @@ interface SettingsState {
   quality: Quality
   /** visual scale of one data center (1.0 = original prototype size) */
   satScale: number
+  /** how many of its CLOSEST peers each data center links to (up to) */
+  maxCrosslinks: number
   orbits: boolean
   constellationLines: boolean
   constellationLabels: boolean
@@ -38,6 +40,7 @@ interface SettingsState {
 export const useSettingsStore = create<SettingsState>((set) => ({
   quality: 'high',
   satScale: DEFAULT_SAT_SCALE,
+  maxCrosslinks: 16,
   orbits: true,
   constellationLines: true,
   constellationLabels: false,

@@ -76,9 +76,19 @@ function SatellitePanel({ id }: { id: string }) {
       </Section>
 
       <Section title="Transmission">
-        {st?.crosslinks.map((l) => (
+        {st && st.crosslinks.length > 0 && (
+          <StatRow
+            label={`Peer links (${st.crosslinks.length} nearest)`}
+            value={fmtGbps(st.crosslinks.reduce((s, l) => s + l.gbps, 0))}
+            accent="ion"
+          />
+        )}
+        {st?.crosslinks.slice(0, 6).map((l) => (
           <StatRow key={l.to} label={`⟷ ${l.to} optical`} value={fmtGbps(l.gbps)} accent="ion" />
         ))}
+        {st && st.crosslinks.length > 6 && (
+          <StatRow label={`… + ${st.crosslinks.length - 6} more peers`} value="" />
+        )}
         {st && st.crosslinks.length === 0 && (
           <StatRow label="Optical crosslink" value="NO PEER IN RANGE" accent="warn" />
         )}

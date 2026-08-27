@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { getFleet, getFleetByClass, satData } from '../store/simStore'
+import { useSettingsStore } from '../store/settingsStore'
 
 /**
  * The living network fabric, drawn as two ephemeral link layers:
@@ -20,7 +21,7 @@ import { getFleet, getFleetByClass, satData } from '../store/simStore'
  * visibly thickens as the decades pass.
  */
 
-const MAX_COOP = 320
+const MAX_COOP = 640
 const MAX_RELAY = 200
 /** candidate partners sampled per spawn — nearest wins */
 const SAMPLES = 24
@@ -141,7 +142,9 @@ export function ComputeMesh() {
     }
 
     // the fabric thickens with the fleet
-    const coopTarget = n >= 2 ? Math.min(MAX_COOP, Math.max(1, Math.floor(n * 0.04))) : 0
+    // fabric density follows the per-DC link setting (16 = the 1× baseline)
+    const linkFactor = useSettingsStore.getState().maxCrosslinks / 16
+    const coopTarget = n >= 2 ? Math.min(MAX_COOP, Math.max(1, Math.floor(n * 0.04 * linkFactor))) : 0
     const outerN = n - innerN
     const relayTarget = outerN >= 1 && innerN >= 1 ? Math.min(MAX_RELAY, Math.max(1, Math.floor(outerN * 0.08))) : 0
 

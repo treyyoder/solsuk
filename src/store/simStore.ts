@@ -21,6 +21,7 @@ import {
 } from '../simulation/epochModel'
 import type { Crosslink, MoonStats, SatelliteConfig, SatelliteStats, Vec3 } from '../simulation/types'
 import { mulberry32 } from '../utils/random'
+import { useSettingsStore } from './settingsStore'
 
 /**
  * Perf split: positions are computed per-frame OUTSIDE React — the render
@@ -188,32 +189,34 @@ export const useSimStore = create<SimState>((set, get) => ({
 
 /** optical crosslinks only reach NEARBY peers — no links across the constellation */
 const CROSSLINK_MAX_DIST = 1.8
+/** hard ceiling on links per data center (the setting slides 1..this) */
+export const MAX_CROSSLINKS = 32
 
+/** the K closest peers within laser range, nearest first (K = user setting) */
 export function crosslinksFor(id: string): Crosslink[] {
+  const K = Math.max(1, Math.min(MAX_CROSSLINKS, useSettingsStore.getState().maxCrosslinks))
   const i = satIndexOf(id) * 3
   const p = satData.positions
-  let best1 = -1
-  let best2 = -1
-  let d1 = CROSSLINK_MAX_DIST
-  let d2 = CROSSLINK_MAX_DIST
+  // K-best insertion lists, ascending by distance — O(fleet · K) worst case,
+  // but the range cap rejects almost every candidate before the insert
+  const idxs: number[] = []
+  const dists: number[] = []
   for (let j = 0; j < fleet.length; j++) {
     if (j * 3 === i) continue
     const d = Math.hypot(p[i] - p[j * 3], p[i + 1] - p[j * 3 + 1], p[i + 2] - p[j * 3 + 2])
-    if (d < d1) {
-      d2 = d1
-      best2 = best1
-      d1 = d
-      best1 = j
-    } else if (d < d2) {
-      d2 = d
-      best2 = j
+    if (d >= CROSSLINK_MAX_DIST || d < 1e-6) continue
+    if (idxs.length === K && d >= dists[K - 1]) continue
+    let at = idxs.length
+    while (at > 0 && dists[at - 1] > d) at--
+    idxs.splice(at, 0, j)
+    dists.splice(at, 0, d)
+    if (idxs.length > K) {
+      idxs.pop()
+      dists.pop()
     }
   }
   const gbps = (dst: number) => +(160 / (0.5 + dst) + Math.random() * 6).toFixed(1)
-  const out: Crosslink[] = []
-  if (best1 >= 0) out.push({ to: fleet[best1].id, gbps: gbps(d1) })
-  if (best2 >= 0) out.push({ to: fleet[best2].id, gbps: gbps(d2) })
-  return out
+  return idxs.map((j, q) => ({ to: fleet[j].id, gbps: gbps(dists[q]) }))
 }
 
 let focusedSatId: string | null = null
