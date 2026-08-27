@@ -23,9 +23,9 @@ import type { SatelliteConfig, Vec3 } from './types'
  *
  * 'cone': a single funnel opening toward the sun — the dog-cone
  * (Elizabethan collar) shape, worn around Earth the way a collar sits on
- * a neck: the narrow rim ENCIRCLES Earth, its plane at 25% of Earth's
- * depth from the anti-sun side (axial −0.5·R⊕), and the wall flares
- * sunward from there to a wide mouth. Every facility rides a ring around
+ * a neck: the narrow rim ENCIRCLES Earth at 25% of its depth from the
+ * anti-sun side, and the wall flares wide by 75% — the mouth never
+ * protrudes past Earth's front. Every facility rides a ring around
  * the Earth→sun axis; ring lateral radius always clears Earth (≥4.0), so
  * even the behind-center rim stays outside the shadow cylinder — the
  * whole swarm is permanently sunlit. These rings are NOT free Kepler
@@ -45,13 +45,16 @@ export function setOrbitPattern(p: OrbitPattern): void {
   orbitPattern = p
 }
 
-/** collar geometry, world units (Earth radius = 3). The neck rim's plane sits
- * at 25% of Earth's depth from the anti-sun side: −R⊕ + 0.25·2R⊕ = −0.5·R⊕. */
+/** collar geometry, world units (Earth radius = 3). The collar spans exactly
+ * Earth's middle half along the sun axis: neck rim plane at 25% of Earth's
+ * depth from the anti-sun side (−0.5·R⊕) and mouth plane at 75% (+0.5·R⊕) —
+ * the wide end never protrudes past Earth's front three-quarters mark. The
+ * flare is therefore mostly LATERAL: a wide shallow collar worn on Earth. */
 const CONE_NECK_AXIAL = -1.5
-const CONE_MOUTH_AXIAL = 8.5
+const CONE_MOUTH_AXIAL = 1.5
 /** rim clears Earth (3.0), penumbra (0.18) and the atmosphere glow shell */
 const CONE_NECK_LATERAL = 4.0
-const CONE_MOUTH_LATERAL = 9.0
+const CONE_MOUTH_LATERAL = 8.5
 const CONE_WALL_THICKNESS = 0.9
 
 /** the slot's shell position, normalized 0..1 — reused as the facility's
