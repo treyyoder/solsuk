@@ -21,19 +21,19 @@ import type { SatelliteConfig, Vec3 } from './types'
  * planes) — satellites stay near 90° from the sun axis, wrapping Earth in
  * the classic torus, always sunlit.
  *
- * 'cone': plane normals tilted HARD off the sun line (59–64°). Each
- * satellite's angle from the sun axis then swings between α and 180°−α
- * (α = 26–31°), and because dwell time on a circular orbit peaks at the
- * swing extremes, the swarm's density hugs a DOUBLE CONE — apex at Earth,
- * aimed along the sun line. Nothing ever comes within CONE_MIN_ANGLE of
- * the axis, so Earth's line of sight to the sun stays permanently clear,
- * and no facility sits directly sunward of another on the same sheet.
- * Cone orbits also ride HIGHER shells (7.6–9.6 vs the donut's 4.0–6.6):
- * at those radii even the anti-sun sheet's closest lateral approach to
- * the shadow axis (r·sin α ≥ 3.3) clears Earth's umbra cylinder, so the
- * whole pattern stays permanently sunlit — solar power never drops.
- * Angular velocity is re-derived from the remapped radius (ω ∝ r^-1.5),
- * so the higher orbits move with genuine Kepler periods.
+ * 'cone': a single funnel opening toward the sun — the dog-cone
+ * (Elizabethan collar) shape, Earth at the narrow end. Every facility
+ * rides a ring around the Earth→sun axis at cone angle α (26–40°) on the
+ * SUNWARD side only; ring lateral radius grows with sunward distance, so
+ * the family sweeps a flaring conical wall from r=4.5 out to r=9.5.
+ * These rings are NOT free Kepler orbits — a one-sided formation cannot
+ * be — they are displaced non-Keplerian orbits held by continuous
+ * low-thrust station-keeping (solar-pressure-assisted, a studied statite
+ * concept), a deliberately powered formation. Payoffs: the whole swarm
+ * is permanently sunlit (never behind Earth), nothing comes within
+ * CONE_MIN_ANGLE of the axis so Earth's view of the sun stays clear,
+ * and no facility ever sits directly sunward of another — shadows off
+ * the cone wall exit the formation instead of landing on a neighbor.
  *
  * Set via setOrbitPattern (the settings store syncs it); kept as a module
  * flag so this module stays free of store/react imports.
@@ -44,26 +44,23 @@ export function setOrbitPattern(p: OrbitPattern): void {
   orbitPattern = p
 }
 
-/** double-cone half-angle band, radians — the 26° floor keeps the sun disc
- * (~2° from Earth, incl. margin) far outside anything the swarm occupies.
- * The band is kept NARROW so every orbit swings out to nearly the same
- * extreme angle — that stacks the dwell-time density of the whole fleet
- * onto two crisp cone sheets instead of smearing it into a shell. */
+/** cone-wall half-angle band, radians — the 26° floor keeps the sun disc
+ * (~2° from Earth, incl. margin) far outside anything the swarm occupies */
 const CONE_MIN_ANGLE = (26 * Math.PI) / 180
-const CONE_MAX_ANGLE = (31 * Math.PI) / 180
-/** cone shells sit high enough that r·sin(CONE_MIN_ANGLE) > shadow cylinder
- * (3.0) + penumbra (0.18) — even the anti-sun sheet never loses the sun */
-const CONE_RADIUS_MIN = 7.6
-const CONE_RADIUS_MAX = 9.6
+const CONE_MAX_ANGLE = (40 * Math.PI) / 180
+/** the funnel runs from just above the donut shells out to a wide mouth */
+const CONE_RADIUS_MIN = 4.5
+const CONE_RADIUS_MAX = 9.5
 
-/** pattern-effective orbit radius: cone remaps the slot's shell band outward */
+/** pattern-effective distance from Earth: cone stretches the slot's shell
+ * band along the funnel so the wall flares from neck to mouth */
 function effRadius(sat: SatelliteConfig): number {
   if (orbitPattern !== 'cone') return sat.radius
   const u = (sat.radius - ORBIT_MIN_RADIUS) / (ORBIT_MAX_RADIUS - ORBIT_MIN_RADIUS)
   return CONE_RADIUS_MIN + u * (CONE_RADIUS_MAX - CONE_RADIUS_MIN)
 }
 
-/** pattern-effective angular velocity — Kepler ω ∝ r^-1.5 for the remapped radius */
+/** pattern-effective angular rate — scaled ∝ r^-1.5 so outer rings turn slower */
 function effAngVel(sat: SatelliteConfig): number {
   if (orbitPattern !== 'cone') return sat.angVel
   return sat.angVel * Math.pow(sat.radius / effRadius(sat), 1.5)
@@ -110,6 +107,10 @@ export function orbitPosition(radius: number, inclination: number, raan: number,
 const nScratch: Vec3 = [0, 0, 0]
 const aScratch: Vec3 = [0, 0, 0]
 const bScratch: Vec3 = [0, 0, 0]
+/** ring center (offset from Earth) and radius — donut rings are Earth-centered
+ * great circles (c=0, R=orbit radius); cone rings circle the sun axis sunward */
+const cScratch: Vec3 = [0, 0, 0]
+let ringRadius = 1
 
 /**
  * Sun-riding orbit: the orbit plane's normal is the sun direction tilted by
@@ -118,15 +119,40 @@ const bScratch: Vec3 = [0, 0, 0]
  * this is the "always in sunlight" guarantee. Unique (radius, tilt, azimuth,
  * phase) slots per satellite keep the constellation deconflicted.
  */
-/** Builds the pattern's in-plane orbit basis (a, b) into aScratch/bScratch —
- * shared by position and tangent. Both patterns are genuine great-circle
- * orbits; 'cone' just remaps the slot tilt so the plane normal sits 50–64°
- * off the sun line instead of ≤33°. */
+/** Builds the pattern's ring basis (a, b), center (cScratch) and ringRadius —
+ * shared by position and tangent. */
 function satBasis(sat: SatelliteConfig, sunDir: Vec3): void {
-  const tilt =
-    orbitPattern === 'cone'
-      ? Math.PI / 2 - (CONE_MIN_ANGLE + (sat.tilt / ORBIT_MAX_TILT) * (CONE_MAX_ANGLE - CONE_MIN_ANGLE))
-      : sat.tilt
+  if (orbitPattern === 'cone') {
+    // dog-cone wall: a ring circling the Earth→sun axis at cone angle α on
+    // the sunward side — center = sunDir·r·cosα, lateral radius = r·sinα.
+    // α and r map from the slot so every facility keeps a unique ring on
+    // the flaring funnel wall (thrust-maintained displaced orbits).
+    const alpha = CONE_MIN_ANGLE + (sat.tilt / ORBIT_MAX_TILT) * (CONE_MAX_ANGLE - CONE_MIN_ANGLE)
+    const r = effRadius(sat)
+    const axial = r * Math.cos(alpha)
+    ringRadius = r * Math.sin(alpha)
+    cScratch[0] = sunDir[0] * axial
+    cScratch[1] = sunDir[1] * axial
+    cScratch[2] = sunDir[2] * axial
+    // ring plane ⊥ sunDir: u = sunDir × Y (unit — sunDir is unit with y=0),
+    // v = sunDir × u = (0,−1,0); rotate by the slot azimuth to stagger rings
+    const ux = -sunDir[2]
+    const uz = sunDir[0]
+    const ca = Math.cos(sat.azimuth)
+    const sa = Math.sin(sat.azimuth)
+    aScratch[0] = ux * ca
+    aScratch[1] = -sa
+    aScratch[2] = uz * ca
+    bScratch[0] = -ux * sa
+    bScratch[1] = -ca
+    bScratch[2] = -uz * sa
+    return
+  }
+  cScratch[0] = 0
+  cScratch[1] = 0
+  cScratch[2] = 0
+  ringRadius = sat.radius
+  const tilt = sat.tilt
   // u,v ⊥ sunDir (sunDir lives in the ecliptic plane, so worldY is safe)
   // u = sunDir × Y, v = sunDir × u
   const ux = -sunDir[2]
@@ -180,13 +206,12 @@ export function satPosition(sat: SatelliteConfig, t: number, sunDir: Vec3, out: 
  * orbit-preview line) without going through time-based phase arithmetic,
  * which would otherwise mix a huge t-derived term back in. Call satBasis
  * first (satPosition does this for you; direct callers must do it themselves). */
-export function satPositionAtTheta(sat: SatelliteConfig, theta: number, out: Vec3): Vec3 {
-  const r = effRadius(sat)
-  const cth = Math.cos(theta) * r
-  const sth = Math.sin(theta) * r
-  out[0] = aScratch[0] * cth + bScratch[0] * sth
-  out[1] = aScratch[1] * cth + bScratch[1] * sth
-  out[2] = aScratch[2] * cth + bScratch[2] * sth
+export function satPositionAtTheta(_sat: SatelliteConfig, theta: number, out: Vec3): Vec3 {
+  const cth = Math.cos(theta) * ringRadius
+  const sth = Math.sin(theta) * ringRadius
+  out[0] = cScratch[0] + aScratch[0] * cth + bScratch[0] * sth
+  out[1] = cScratch[1] + aScratch[1] * cth + bScratch[1] * sth
+  out[2] = cScratch[2] + aScratch[2] * cth + bScratch[2] * sth
   return out
 }
 
@@ -212,10 +237,9 @@ export function satPositionAndTangent(sat: SatelliteConfig, t: number, sunDir: V
   const bx = bScratch[0]
   const by = bScratch[1]
   const bz = bScratch[2]
-  const r = effRadius(sat)
-  outPos[0] = ax * cth * r + bx * sth * r
-  outPos[1] = ay * cth * r + by * sth * r
-  outPos[2] = az * cth * r + bz * sth * r
+  outPos[0] = cScratch[0] + ax * cth * ringRadius + bx * sth * ringRadius
+  outPos[1] = cScratch[1] + ay * cth * ringRadius + by * sth * ringRadius
+  outPos[2] = cScratch[2] + az * cth * ringRadius + bz * sth * ringRadius
   // d/dθ (cosθ·a + sinθ·b) = -sinθ·a + cosθ·b — already unit length (a,b orthonormal)
   outTangent[0] = -sth * ax + cth * bx
   outTangent[1] = -sth * ay + cth * by
