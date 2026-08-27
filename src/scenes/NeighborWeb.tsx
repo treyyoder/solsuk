@@ -34,7 +34,8 @@ const MAX_CAND = 220
 const CYCLE = 14
 /** distance from the window edge (in cycle fraction) over which links fade */
 const EDGE = 0.06
-const GRID_HALF = 8
+/** covers the outermost pattern — cone shells reach r=9.6 */
+const GRID_HALF = 10
 const GRID_DIM = Math.ceil((GRID_HALF * 2) / RANGE) // 10
 const GRID_CELLS = GRID_DIM * GRID_DIM * GRID_DIM
 

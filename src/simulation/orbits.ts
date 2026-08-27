@@ -4,7 +4,9 @@ import {
   MOON_INCLINATION,
   MOON_ORBIT_RADIUS,
   MOON_PERIOD,
+  ORBIT_MAX_RADIUS,
   ORBIT_MAX_TILT,
+  ORBIT_MIN_RADIUS,
   SUN_DISTANCE,
   SUN_PERIOD,
 } from './constants'
@@ -19,15 +21,19 @@ import type { SatelliteConfig, Vec3 } from './types'
  * planes) — satellites stay near 90° from the sun axis, wrapping Earth in
  * the classic torus, always sunlit.
  *
- * 'cone': plane normals tilted HARD off the sun line (50–64°). Each
+ * 'cone': plane normals tilted HARD off the sun line (59–64°). Each
  * satellite's angle from the sun axis then swings between α and 180°−α
- * (α = 26–40°), and because dwell time on a circular orbit peaks at the
+ * (α = 26–31°), and because dwell time on a circular orbit peaks at the
  * swing extremes, the swarm's density hugs a DOUBLE CONE — apex at Earth,
  * aimed along the sun line. Nothing ever comes within CONE_MIN_ANGLE of
  * the axis, so Earth's line of sight to the sun stays permanently clear,
  * and no facility sits directly sunward of another on the same sheet.
- * Honest physics corollary: the anti-sun sheet dips through Earth's
- * shadow, so unlike the donut, cone facilities DO see brief eclipses.
+ * Cone orbits also ride HIGHER shells (7.6–9.6 vs the donut's 4.0–6.6):
+ * at those radii even the anti-sun sheet's closest lateral approach to
+ * the shadow axis (r·sin α ≥ 3.3) clears Earth's umbra cylinder, so the
+ * whole pattern stays permanently sunlit — solar power never drops.
+ * Angular velocity is re-derived from the remapped radius (ω ∝ r^-1.5),
+ * so the higher orbits move with genuine Kepler periods.
  *
  * Set via setOrbitPattern (the settings store syncs it); kept as a module
  * flag so this module stays free of store/react imports.
@@ -45,6 +51,23 @@ export function setOrbitPattern(p: OrbitPattern): void {
  * onto two crisp cone sheets instead of smearing it into a shell. */
 const CONE_MIN_ANGLE = (26 * Math.PI) / 180
 const CONE_MAX_ANGLE = (31 * Math.PI) / 180
+/** cone shells sit high enough that r·sin(CONE_MIN_ANGLE) > shadow cylinder
+ * (3.0) + penumbra (0.18) — even the anti-sun sheet never loses the sun */
+const CONE_RADIUS_MIN = 7.6
+const CONE_RADIUS_MAX = 9.6
+
+/** pattern-effective orbit radius: cone remaps the slot's shell band outward */
+function effRadius(sat: SatelliteConfig): number {
+  if (orbitPattern !== 'cone') return sat.radius
+  const u = (sat.radius - ORBIT_MIN_RADIUS) / (ORBIT_MAX_RADIUS - ORBIT_MIN_RADIUS)
+  return CONE_RADIUS_MIN + u * (CONE_RADIUS_MAX - CONE_RADIUS_MIN)
+}
+
+/** pattern-effective angular velocity — Kepler ω ∝ r^-1.5 for the remapped radius */
+function effAngVel(sat: SatelliteConfig): number {
+  if (orbitPattern !== 'cone') return sat.angVel
+  return sat.angVel * Math.pow(sat.radius / effRadius(sat), 1.5)
+}
 
 /**
  * Pure circular-orbit math. World frame: y-up; the ecliptic is the x-z plane.
@@ -143,8 +166,9 @@ function satBasis(sat: SatelliteConfig, sunDir: Vec3): void {
 }
 
 function satTheta(sat: SatelliteConfig, t: number): number {
-  const period = (2 * Math.PI) / sat.angVel
-  return sat.phase + wrapTime(t, period) * sat.angVel
+  const w = effAngVel(sat)
+  const period = (2 * Math.PI) / w
+  return sat.phase + wrapTime(t, period) * w
 }
 
 export function satPosition(sat: SatelliteConfig, t: number, sunDir: Vec3, out: Vec3): Vec3 {
@@ -157,8 +181,9 @@ export function satPosition(sat: SatelliteConfig, t: number, sunDir: Vec3, out: 
  * which would otherwise mix a huge t-derived term back in. Call satBasis
  * first (satPosition does this for you; direct callers must do it themselves). */
 export function satPositionAtTheta(sat: SatelliteConfig, theta: number, out: Vec3): Vec3 {
-  const cth = Math.cos(theta) * sat.radius
-  const sth = Math.sin(theta) * sat.radius
+  const r = effRadius(sat)
+  const cth = Math.cos(theta) * r
+  const sth = Math.sin(theta) * r
   out[0] = aScratch[0] * cth + bScratch[0] * sth
   out[1] = aScratch[1] * cth + bScratch[1] * sth
   out[2] = aScratch[2] * cth + bScratch[2] * sth
@@ -187,9 +212,10 @@ export function satPositionAndTangent(sat: SatelliteConfig, t: number, sunDir: V
   const bx = bScratch[0]
   const by = bScratch[1]
   const bz = bScratch[2]
-  outPos[0] = ax * cth * sat.radius + bx * sth * sat.radius
-  outPos[1] = ay * cth * sat.radius + by * sth * sat.radius
-  outPos[2] = az * cth * sat.radius + bz * sth * sat.radius
+  const r = effRadius(sat)
+  outPos[0] = ax * cth * r + bx * sth * r
+  outPos[1] = ay * cth * r + by * sth * r
+  outPos[2] = az * cth * r + bz * sth * r
   // d/dθ (cosθ·a + sinθ·b) = -sinθ·a + cosθ·b — already unit length (a,b orthonormal)
   outTangent[0] = -sth * ax + cth * bx
   outTangent[1] = -sth * ay + cth * by
