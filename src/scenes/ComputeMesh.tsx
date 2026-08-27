@@ -2,38 +2,25 @@ import { useMemo, useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import * as THREE from 'three'
 import { getFleet, getFleetByClass, satData } from '../store/simStore'
-import { useSettingsStore } from '../store/settingsStore'
 
 /**
- * The living network fabric, drawn as two ephemeral link layers:
+ * GREEN relay links: ephemeral, sampled links running from the heavy
+ * OUTER-shell platforms (standard/hyper/giga) down to inner-shell
+ * facilities (pioneer/cluster/edge) — results being relayed toward Earth,
+ * where the inner shell's downlink beams (GroundLinks, same green) carry
+ * them the last hop to a city. Each link lives a few seconds, fades in/out
+ * via vertex colors (additive: black = invisible), then re-rolls elsewhere.
  *
- *  - PURPLE links join nearby facilities cooperating on a compute job —
- *    neighbors splitting work across the laser mesh.
- *  - GREEN links run from the heavy OUTER-shell platforms (standard/hyper/
- *    giga) down to inner-shell facilities (pioneer/cluster/edge) — results
- *    being relayed toward Earth, where the inner shell's downlink beams
- *    (GroundLinks, same green) carry them the last hop to a city.
- *
- * Links are a sampled, ever-churning subset — with fleets up to ~30k the
- * full mesh is undrawable and unreadable. Each link lives a few seconds,
- * fades in/out via vertex colors (additive blending: black = invisible),
- * then re-rolls elsewhere. Link counts scale with the fleet, so the fabric
- * visibly thickens as the decades pass.
+ * The PURPLE cooperation layer lives in NeighborWeb — a true
+ * nearest-neighbor web, not a sampled churn.
  */
 
-const MAX_COOP = 640
 const MAX_RELAY = 200
 /** candidate partners sampled per spawn — nearest wins */
 const SAMPLES = 24
 const SPAWNS_PER_FRAME = 3
 const FADE = 0.7
-/**
- * Hard proximity caps — laser links only form between facilities that are
- * actually NEAR each other (a ~15-20° arc at shell radius), never across
- * the constellation. A sparse early fleet whose neighbors sit far apart
- * simply has few links yet — the fabric emerges as the shells fill in.
- */
-const COOP_MAX_DIST = 1.4
+/** relay hops only form between facilities in close proximity (~20° arc) */
 const RELAY_MAX_DIST = 1.8
 
 interface Link {
@@ -43,7 +30,6 @@ interface Link {
   life: number
 }
 
-const COOP_RGB = [0.71, 0.3, 1.0] // #b44cff
 const RELAY_RGB = [0.22, 1.0, 0.56] // #39ff8e
 
 function makeGeo(max: number) {
@@ -121,9 +107,7 @@ function updateLayer(
 }
 
 export function ComputeMesh() {
-  const coopGeo = useMemo(() => makeGeo(MAX_COOP), [])
   const relayGeo = useMemo(() => makeGeo(MAX_RELAY), [])
-  const coop = useRef<Link[]>([])
   const relay = useRef<Link[]>([])
   const lastVersion = useRef(-1)
 
@@ -137,23 +121,12 @@ export function ComputeMesh() {
     // at different facilities, so hurry existing links to their fade-out
     if (satData.version !== lastVersion.current) {
       lastVersion.current = satData.version
-      for (const L of coop.current) L.life = Math.min(L.life, L.age + FADE)
       for (const L of relay.current) L.life = Math.min(L.life, L.age + FADE)
     }
 
-    // the fabric thickens with the fleet
-    // fabric density follows the per-DC link setting (16 = the 1× baseline)
-    const linkFactor = useSettingsStore.getState().maxCrosslinks / 16
-    const coopTarget = n >= 2 ? Math.min(MAX_COOP, Math.max(1, Math.floor(n * 0.04 * linkFactor))) : 0
     const outerN = n - innerN
     const relayTarget = outerN >= 1 && innerN >= 1 ? Math.min(MAX_RELAY, Math.max(1, Math.floor(outerN * 0.08))) : 0
 
-    for (let s = 0; s < SPAWNS_PER_FRAME && coop.current.length < coopTarget; s++) {
-      const a = Math.floor(Math.random() * n)
-      if (!alive(a)) continue
-      const b = nearestSample(a, 0, n, COOP_MAX_DIST)
-      if (b >= 0) coop.current.push({ a, b, age: 0, life: 3 + Math.random() * 7 })
-    }
     for (let s = 0; s < SPAWNS_PER_FRAME && relay.current.length < relayTarget; s++) {
       const a = innerN + Math.floor(Math.random() * outerN)
       if (!alive(a)) continue
@@ -161,20 +134,14 @@ export function ComputeMesh() {
       if (b >= 0) relay.current.push({ a, b, age: 0, life: 3 + Math.random() * 7 })
     }
 
-    updateLayer(coop.current, coopGeo, COOP_RGB, dt, n, false)
     updateLayer(relay.current, relayGeo, RELAY_RGB, dt, n, true)
   })
 
   return (
-    <group>
-      {/* purple: neighbors sharing a compute job */}
-      <lineSegments geometry={coopGeo} frustumCulled={false}>
-        <lineBasicMaterial vertexColors transparent opacity={0.75} toneMapped={false} depthWrite={false} blending={THREE.AdditiveBlending} />
-      </lineSegments>
-      {/* green: outer platforms relaying results toward the Earth-facing shell */}
-      <lineSegments geometry={relayGeo} frustumCulled={false}>
-        <lineBasicMaterial vertexColors transparent opacity={0.7} toneMapped={false} depthWrite={false} blending={THREE.AdditiveBlending} />
-      </lineSegments>
-    </group>
+    /* green: outer platforms relaying results toward the Earth-facing shell.
+       (The purple cooperation layer is the nearest-neighbor web — NeighborWeb.) */
+    <lineSegments geometry={relayGeo} frustumCulled={false}>
+      <lineBasicMaterial vertexColors transparent opacity={0.7} toneMapped={false} depthWrite={false} blending={THREE.AdditiveBlending} />
+    </lineSegments>
   )
 }
