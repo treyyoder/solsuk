@@ -204,10 +204,10 @@ export function CameraRig() {
     // Keep the user's orientation IN THE SUN FRAME: timeline scrubs and fast
     // playback swing the sun around Earth (it precesses through the year), so
     // a view held "behind Earth toward the sun" would otherwise end up aimed
-    // at empty space. Rotate the camera and its orbit target about Earth's
-    // axis by exactly the sun's angular change each frame — the framing stays
-    // true while Earth spins beneath it. Stands down during scripted flights
-    // and is a no-op at everyday speeds (threshold ≫ real-time sun rate).
+    // at empty space. Rotate the camera about Earth's axis by exactly the
+    // sun's angular change each frame — the framing stays true while Earth
+    // spins beneath it. Stands down during scripted flights.
+    const f = useFocusStore.getState().focus
     sunDirection(simClock.t, sunDirScratch)
     const sunA = Math.atan2(sunDirScratch[2], sunDirScratch[0])
     const prevSunA = sunAngle.current
@@ -216,24 +216,33 @@ export function CameraRig() {
       let dA = sunA - prevSunA
       if (dA > Math.PI) dA -= 2 * Math.PI
       else if (dA < -Math.PI) dA += 2 * Math.PI
-      if (Math.abs(dA) > 1e-6) {
-        const cs = Math.cos(dA)
-        const sn = Math.sin(dA)
-        c.getPosition(vCam)
-        c.getTarget(vTgt)
-        void c.setLookAt(
-          vCam.x * cs - vCam.z * sn,
-          vCam.y,
-          vCam.x * sn + vCam.z * cs,
-          vTgt.x * cs - vTgt.z * sn,
-          vTgt.y,
-          vTgt.x * sn + vTgt.z * cs,
-          false,
-        )
+      if (Math.abs(dA) > 1e-7) {
+        if (f.kind === 'sun') {
+          // the orbit target (the sun) itself moves — rotate position AND
+          // target about the origin explicitly
+          const cs = Math.cos(dA)
+          const sn = Math.sin(dA)
+          c.getPosition(vCam)
+          c.getTarget(vTgt)
+          void c.setLookAt(
+            vCam.x * cs - vCam.z * sn,
+            vCam.y,
+            vCam.x * sn + vCam.z * cs,
+            vTgt.x * cs - vTgt.z * sn,
+            vTgt.y,
+            vTgt.x * sn + vTgt.z * cs,
+            false,
+          )
+        } else {
+          // target sits at Earth's center, so the same world-Y rotation is a
+          // pure azimuth change (Spherical θ = atan2(x, z) decreases as the
+          // world angle grows). Nudging azimuthAngle COMPOSES with
+          // camera-controls' input damping — a per-frame setLookAt cancelled
+          // it and made drag-rotation choppy at playback speeds.
+          c.azimuthAngle -= dA
+        }
       }
     }
-
-    const f = useFocusStore.getState().focus
     if (f.kind !== 'satellite' && f.kind !== 'moon') return
 
     if (diagEnabled()) {
