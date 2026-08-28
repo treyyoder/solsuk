@@ -236,10 +236,14 @@ export function CameraRig() {
         } else {
           // target sits at Earth's center, so the same world-Y rotation is a
           // pure azimuth change (Spherical θ = atan2(x, z) decreases as the
-          // world angle grows). Nudging azimuthAngle COMPOSES with
-          // camera-controls' input damping — a per-frame setLookAt cancelled
-          // it and made drag-rotation choppy at playback speeds.
-          c.azimuthAngle -= dA
+          // world angle grows). rotate() applies a RELATIVE rotation to the
+          // control's end state, so it composes cleanly with in-flight drag
+          // input and damping. (Assigning c.azimuthAngle -= dA does NOT: the
+          // getter reads the damped CURRENT angle while the setter writes the
+          // TARGET, so each frame yanked the drag target back to wherever the
+          // damping had reached — rubber-banding every mouse rotation. And a
+          // per-frame setLookAt cancels damping outright — the original chop.)
+          c.rotate(-dA, 0, false)
         }
       }
     }
