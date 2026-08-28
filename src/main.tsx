@@ -17,6 +17,12 @@ if (patternParam === 'cone' || patternParam === 'donut') {
   useSettingsStore.getState().set({ orbitPattern: patternParam })
 }
 
+// deep-link the speed level: ?speed=-22 (signed; see utils/time.ts)
+const speedParam = new URLSearchParams(window.location.search).get('speed')
+if (speedParam && !Number.isNaN(parseInt(speedParam, 10))) {
+  useSimStore.getState().setSpeedLevel(parseInt(speedParam, 10))
+}
+
 const yearParam = new URLSearchParams(window.location.search).get('year')
 if (yearParam && !Number.isNaN(parseFloat(yearParam))) {
   useSimStore.getState().setYear(parseFloat(yearParam))

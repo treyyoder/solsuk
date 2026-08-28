@@ -55,7 +55,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   orbitPattern: 'donut',
   leoAltitudeKm: 1000,
   orbits: true,
-  constellationLines: true,
+  constellationLines: false,
   constellationLabels: false,
   labels: true,
   autoRotate: false,

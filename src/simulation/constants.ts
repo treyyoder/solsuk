@@ -28,8 +28,10 @@ export const SUN_PERIOD = 365.25 * 86400
 export const STAR_RADIUS = 460
 export const CONSTELLATION_RADIUS = 455
 
-export const DEFAULT_SPEED_LEVEL = 1
-export const MAX_SPEED_LEVEL = 100
+export const DEFAULT_SPEED_LEVEL = 10
+/** signed speed levels: negative runs time BACKWARD, 0 holds it still */
+export const MIN_SPEED_LEVEL = -25
+export const MAX_SPEED_LEVEL = 25
 
 /**
  * Orbit slots — sun-riding deconflicted constellation.

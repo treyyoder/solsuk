@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { DEFAULT_SPEED_LEVEL, MAX_SPEED_LEVEL } from '../simulation/constants'
+import { DEFAULT_SPEED_LEVEL, MAX_SPEED_LEVEL, MIN_SPEED_LEVEL } from '../simulation/constants'
 import { timeScaleForLevel } from '../utils/time'
 import { facilityConfigFor } from '../simulation/fleet'
 import { illumination } from '../simulation/eclipse'
@@ -141,7 +141,7 @@ export const useSimStore = create<SimState>((set, get) => ({
   activeMilestone: null,
 
   setSpeedLevel: (level) => {
-    const speedLevel = Math.max(1, Math.min(MAX_SPEED_LEVEL, Math.round(level)))
+    const speedLevel = Math.max(MIN_SPEED_LEVEL, Math.min(MAX_SPEED_LEVEL, Math.round(level)))
     set({ speedLevel, timeScale: timeScaleForLevel(speedLevel) })
   },
   togglePause: () => set((s) => ({ paused: !s.paused })),

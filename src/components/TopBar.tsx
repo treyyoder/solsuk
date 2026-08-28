@@ -5,7 +5,7 @@ import { simClock, useSimStore, yearFromT } from '../store/simStore'
 import { usePerfStore } from '../store/perfStore'
 import { useSettingsStore, type Quality } from '../store/settingsStore'
 import { fmtSimRate } from '../utils/time'
-import { MAX_SPEED_LEVEL } from '../simulation/constants'
+import { MAX_SPEED_LEVEL, MIN_SPEED_LEVEL } from '../simulation/constants'
 import { SolsukLogo } from './SolsukLogo'
 
 const ordinal = (d: number) =>
@@ -98,17 +98,20 @@ export function TopBar() {
       <button onClick={togglePause} className={`btn-ghost h-7 w-7 rounded-md text-xs ${paused ? '' : 'active'}`} title={paused ? 'Resume' : 'Pause'}>
         {paused ? '▶' : '❚❚'}
       </button>
-      <div className="flex items-center gap-2" title="Time warp: each level doubles simulated hours per real second">
+      <div
+        className="flex items-center gap-2"
+        title="Time warp: each level doubles simulated seconds per real second — negative levels run time BACKWARD, 0 holds it"
+      >
         <input
           type="range"
-          min={1}
+          min={MIN_SPEED_LEVEL}
           max={MAX_SPEED_LEVEL}
           step={1}
           value={speedLevel}
           onChange={(e) => setSpeedLevel(parseInt(e.target.value))}
           className="w-24"
         />
-        <span className="mono w-8 shrink-0 text-[10px] text-orbit">{speedLevel}×</span>
+        <span className="mono w-9 shrink-0 text-right text-[10px] text-orbit">{speedLevel}×</span>
         <span className="mono w-16 shrink-0 text-[9px] text-fg-dim">{fmtSimRate(speedLevel)}</span>
       </div>
 

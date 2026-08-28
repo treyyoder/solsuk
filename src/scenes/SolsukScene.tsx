@@ -25,7 +25,11 @@ function ClockDriver() {
   const acc = useRef(0)
   useFrame((_, delta) => {
     const { paused, timeScale } = useSimStore.getState()
-    if (!paused) simClock.t += Math.min(delta, 0.1) * timeScale
+    if (!paused) {
+      simClock.t += Math.min(delta, 0.1) * timeScale
+      // reverse play pins at the 2026 epoch — time doesn't run before the era
+      if (simClock.t < 0) simClock.t = 0
+    }
     if (diagEnabled()) {
       acc.current += delta
       if (acc.current > 0.5) {

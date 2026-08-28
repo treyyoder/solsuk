@@ -28,6 +28,7 @@ export function TimelineBar() {
 
   const eraPlaying = speedLevel === ERA_PLAY_LEVEL && !paused
   const prevLevel = useRef(1)
+  const [hover, setHover] = useState<{ frac: number; year: number } | null>(null)
 
   const toggleEraPlay = () => {
     if (eraPlaying) {
@@ -54,8 +55,24 @@ export function TimelineBar() {
         {eraPlaying ? '■ ERA' : '▶ ERA'}
       </button>
 
-      {/* scrubber with milestone markers */}
-      <div className="relative min-w-0 flex-1 self-stretch">
+      {/* scrubber with milestone markers + hover-year readout */}
+      <div
+        className="relative min-w-0 flex-1 self-stretch"
+        onMouseMove={(e) => {
+          const rect = e.currentTarget.getBoundingClientRect()
+          const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width))
+          setHover({ frac, year: Math.floor(START_YEAR + frac * SPAN) })
+        }}
+        onMouseLeave={() => setHover(null)}
+      >
+        {hover && (
+          <div
+            className="pointer-events-none absolute bottom-[calc(50%+10px)] z-10 -translate-x-1/2 rounded border border-edge bg-panel/95 px-1.5 py-0.5 mono text-[10px] text-orbit"
+            style={{ left: `${hover.frac * 100}%` }}
+          >
+            {hover.year}
+          </div>
+        )}
         <input
           type="range"
           min={START_YEAR}
