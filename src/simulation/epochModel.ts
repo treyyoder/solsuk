@@ -361,24 +361,28 @@ export function computeEpoch(year: number, config: SimConfig): EpochState {
   const totalComputeEF = (totalPowerMW * 1000 * eff) / 1e6
   const largestComputeEF = (largestPowerMW * 1000 * eff) / 1e6
   const bw = config.bandwidthMultiplier
+  // before the first ODC launches there is no fleet to measure — the
+  // dashboard reads ALL zeros, including the technology-curve rows that
+  // would otherwise interpolate to nonzero values with nothing on orbit
+  const fleetExists = totalCount > 0
 
   const state: EpochState = {
     year: y,
     counts,
     totalCount,
     totalPowerMW,
-    avgPowerMW: totalCount > 0 ? totalPowerMW / totalCount : 0,
+    avgPowerMW: fleetExists ? totalPowerMW / totalCount : 0,
     largestPowerMW,
     totalComputeEF,
     largestComputeEF,
-    computeEffTFperKW: eff,
-    solarEffPct: solarEfficiency(y, config) * 100,
+    computeEffTFperKW: fleetExists ? eff : 0,
+    solarEffPct: fleetExists ? solarEfficiency(y, config) * 100 : 0,
     totalSolarAreaKm2: solarAreaM2(totalPowerMW, y, config) / 1e6,
     totalRadiatorAreaKm2: radiatorAreaM2(totalPowerMW, config) / 1e6,
     gpuEquivalents: (totalComputeEF * 1e6) / config.gpuEquivTFLOPS,
     totalMassTons: totalPowerMW * interp(MASS_PER_MW, y) * config.massMultiplier,
     interSatGbps: interp(INTERSAT_PER_FAC, y) * totalCount * 2 * bw,
-    earthLinkGbps: interp(EARTH_LINK_TOTAL, y) * bw,
+    earthLinkGbps: fleetExists ? interp(EARTH_LINK_TOTAL, y) * bw : 0,
     largestFabricTbps: largestPowerMW * interp(FABRIC_PER_MW, y) * bw,
   }
   epochCache.set(key, state)
