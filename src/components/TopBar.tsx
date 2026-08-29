@@ -55,7 +55,7 @@ export function TopBar() {
   const crumbs = breadcrumb(focus)
 
   return (
-    <div className="glass pointer-events-auto flex h-12 items-center gap-3 rounded-xl px-4">
+    <div className="glass pointer-events-auto flex h-12 items-center gap-3 rounded-xl px-4 max-md:h-auto max-md:min-h-12 max-md:flex-wrap max-md:gap-y-2 max-md:py-2">
       <button onClick={showLanding} aria-label="SOLSUK — home" className="font-display text-sm font-bold tracking-[0.28em]">
         <SolsukLogo />
       </button>
@@ -98,11 +98,17 @@ export function TopBar() {
       <div className="flex-1 max-md:hidden" />
 
       <SimClockReadout />
-      <button onClick={togglePause} className={`btn-ghost h-7 w-7 rounded-md text-xs ${paused ? '' : 'active'}`} title={paused ? 'Resume' : 'Pause'}>
+      <button
+        onClick={togglePause}
+        className={`btn-ghost h-7 w-7 rounded-md text-xs max-md:ml-auto max-md:h-10 max-md:w-10 max-md:text-sm ${paused ? '' : 'active'}`}
+        title={paused ? 'Resume' : 'Pause'}
+      >
         {paused ? '▶' : '❚❚'}
       </button>
+      {/* on phones the speed control gets its OWN full-width row — sharing the
+          top row left it a ~50px track, which was unusable */}
       <div
-        className="flex items-center gap-2 max-md:min-w-0 max-md:flex-1"
+        className="flex items-center gap-2 max-md:min-w-0 max-md:basis-full"
         title="Time warp: each level doubles simulated seconds per real second — negative levels run time BACKWARD, 0 holds it"
       >
         <input
