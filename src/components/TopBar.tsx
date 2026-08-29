@@ -100,7 +100,7 @@ export function TopBar() {
       <SimClockReadout />
       <button
         onClick={togglePause}
-        className={`btn-ghost h-7 w-7 rounded-md text-xs max-md:ml-auto max-md:h-10 max-md:w-10 max-md:text-sm ${paused ? '' : 'active'}`}
+        className={`btn-ghost h-7 w-7 rounded-md text-xs max-md:hidden ${paused ? '' : 'active'}`}
         title={paused ? 'Resume' : 'Pause'}
       >
         {paused ? '▶' : '❚❚'}
