@@ -28,7 +28,7 @@ function SimClockReadout() {
   const mm = Math.floor((simClock.t % 3600) / 60)
   const pad = (n: number) => String(n).padStart(2, '0')
   return (
-    <span className="mono text-[11px] text-fg-dim">
+    <span className="mono text-[11px] text-fg-dim max-md:ml-auto">
       <span className="text-orbit">
         {month} {day}
         {ordinal(day)} {yearInt}
