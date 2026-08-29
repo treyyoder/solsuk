@@ -92,8 +92,8 @@ export function TimelineBar() {
         ))}
       </div>
 
-      {/* era jump chips */}
-      <div className="flex shrink-0 items-center gap-1">
+      {/* era jump chips — desktop only; on a phone the scrubber gets the width */}
+      <div className="hidden shrink-0 items-center gap-1 md:flex">
         {TIMELINE_JUMPS.map((y) => (
           <button
             key={y}

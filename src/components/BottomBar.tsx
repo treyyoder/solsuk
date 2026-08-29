@@ -8,7 +8,7 @@ export function BottomBar() {
   const year = useSimStore((s) => s.year)
   const cities = activeCityCount(year)
   return (
-    <div className="glass pointer-events-auto flex h-9 items-center justify-center gap-6 rounded-xl px-5">
+    <div className="glass pointer-events-auto flex h-9 items-center justify-center gap-6 rounded-xl px-5 max-md:justify-start max-md:overflow-x-auto max-md:[&>span]:shrink-0 max-md:[&>span]:whitespace-nowrap">
       <span className="mono text-[11px]">
         <span className="text-orbit">{fmtCount(epoch.totalCount)}</span>
         <span className="text-fg-dim"> data centers</span>

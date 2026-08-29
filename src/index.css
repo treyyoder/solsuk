@@ -243,6 +243,23 @@ input[type='range']::-moz-range-thumb {
   border: none;
 }
 
+/* touch screens: fat, easy-to-grab sliders — mouse pointers are untouched */
+@media (pointer: coarse) {
+  input[type='range'] {
+    height: 32px;
+    padding: 14px 0;
+    background-clip: content-box;
+  }
+  input[type='range']::-webkit-slider-thumb {
+    width: 26px;
+    height: 26px;
+  }
+  input[type='range']::-moz-range-thumb {
+    width: 26px;
+    height: 26px;
+  }
+}
+
 /* ---- animations ---- */
 @keyframes fade-up {
   from {

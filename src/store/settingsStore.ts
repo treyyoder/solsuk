@@ -46,6 +46,12 @@ interface SettingsState {
   toggle: (key: keyof SettingsState) => void
 }
 
+/** small / coarse-pointer screens start with the side panels collapsed —
+ * the 3D view is the show on a phone; the panels are a tap away */
+const startsMobile =
+  typeof window !== 'undefined' &&
+  window.matchMedia('(max-width: 820px), (pointer: coarse) and (max-width: 1024px)').matches
+
 export const useSettingsStore = create<SettingsState>((set) => ({
   quality: 'high',
   satScale: DEFAULT_SAT_SCALE,
@@ -59,8 +65,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   constellationLabels: false,
   labels: true,
   autoRotate: false,
-  leftOpen: true,
-  rightOpen: true,
+  leftOpen: !startsMobile,
+  rightOpen: !startsMobile,
   set: (patch) => set(patch),
   toggle: (key) => set((s) => ({ [key]: !s[key] }) as Partial<SettingsState>),
 }))

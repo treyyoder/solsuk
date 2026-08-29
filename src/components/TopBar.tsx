@@ -32,8 +32,11 @@ function SimClockReadout() {
       <span className="text-orbit">
         {month} {day}
         {ordinal(day)} {yearInt}
-      </span>{' '}
-      · {pad(hh)}:{pad(mm)}
+      </span>
+      <span className="hidden md:inline">
+        {' '}
+        · {pad(hh)}:{pad(mm)}
+      </span>
     </span>
   )
 }
@@ -56,8 +59,8 @@ export function TopBar() {
       <button onClick={showLanding} aria-label="SOLSUK — home" className="font-display text-sm font-bold tracking-[0.28em]">
         <SolsukLogo />
       </button>
-      <div className="mx-1 h-5 w-px bg-edge" />
-      <nav className="flex items-center gap-1.5 text-[11px]">
+      <div className="mx-1 hidden h-5 w-px bg-edge md:block" />
+      <nav className="hidden items-center gap-1.5 text-[11px] md:flex">
         {crumbs.map((c, i) => (
           <span key={c.label} className="flex items-center gap-1.5">
             {i > 0 && <span className="text-fg-dim">›</span>}
@@ -92,14 +95,14 @@ export function TopBar() {
         ))}
       </nav>
 
-      <div className="flex-1" />
+      <div className="flex-1 max-md:hidden" />
 
       <SimClockReadout />
       <button onClick={togglePause} className={`btn-ghost h-7 w-7 rounded-md text-xs ${paused ? '' : 'active'}`} title={paused ? 'Resume' : 'Pause'}>
         {paused ? '▶' : '❚❚'}
       </button>
       <div
-        className="flex items-center gap-2"
+        className="flex items-center gap-2 max-md:min-w-0 max-md:flex-1"
         title="Time warp: each level doubles simulated seconds per real second — negative levels run time BACKWARD, 0 holds it"
       >
         <input
@@ -109,18 +112,18 @@ export function TopBar() {
           step={1}
           value={speedLevel}
           onChange={(e) => setSpeedLevel(parseInt(e.target.value))}
-          className="w-24"
+          className="w-24 max-md:min-w-0 max-md:flex-1"
         />
         <span className="mono w-9 shrink-0 text-right text-[10px] text-orbit">{speedLevel}×</span>
-        <span className="mono w-16 shrink-0 text-[9px] text-fg-dim">{fmtSimRate(speedLevel)}</span>
+        <span className="mono hidden w-16 shrink-0 text-[9px] text-fg-dim md:inline">{fmtSimRate(speedLevel)}</span>
       </div>
 
-      <div className="mx-1 h-5 w-px bg-edge" />
+      <div className="mx-1 hidden h-5 w-px bg-edge md:block" />
 
       <select
         value={settings.quality}
         onChange={(e) => settings.set({ quality: e.target.value as Quality })}
-        className="mono rounded border border-edge bg-panel px-1.5 py-1 text-[10px] uppercase text-fg-dim"
+        className="mono hidden rounded border border-edge bg-panel px-1.5 py-1 text-[10px] uppercase text-fg-dim md:block"
       >
         {(['low', 'medium', 'high', 'ultra'] as Quality[]).map((q) => (
           <option key={q} value={q}>
@@ -129,7 +132,7 @@ export function TopBar() {
         ))}
       </select>
 
-      <div className="mono w-14 text-right text-[11px]">
+      <div className="mono hidden w-14 text-right text-[11px] md:block">
         <span className={fps >= 50 ? 'text-orbit' : fps >= 30 ? 'text-sol' : 'text-alert'}>{fps}</span>
         <span className="text-fg-dim"> FPS</span>
       </div>
