@@ -7,7 +7,7 @@ export function LandingOverlay() {
   return (
     <div className="pointer-events-auto absolute inset-0 z-30 flex flex-col items-center justify-center bg-gradient-to-b from-void/55 via-transparent to-void/80">
       <div className="fade-up flex flex-col items-center px-6 text-center" style={{ animationDelay: '200ms' }}>
-        <div className="hud-label mb-4 tracking-[0.5em] text-ion">THE ORBITAL COMPUTE ERA · 2026 → 2084</div>
+        <div className="hud-label mb-4 tracking-[0.5em] text-neon-purple">THE ORBITAL COMPUTE ERA · 2026 → 2084</div>
         <h1 className="font-display text-6xl font-bold tracking-[0.16em] md:text-7xl">
           <SolsukLogo />
         </h1>
